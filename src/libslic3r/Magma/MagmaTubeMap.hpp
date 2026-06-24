@@ -21,6 +21,26 @@ struct SlicingParameters;
 
 namespace magma {
 
+// Effective Magma reinforcement pattern for a region. In dual-infill mode the reinforcement
+// is the OUTER zone (dual_infill_outer_pattern); otherwise it is the region's sparse pattern.
+// Single source of truth so MagmaTubeMap::build, the pre-slice warnings in Print::validate,
+// and the fill path all key off the same pattern (sparse_infill_pattern is the inner yolk in
+// dual mode and must NOT drive seal/overlap geometry).
+//
+// The dual outer-pattern option is typed as the full InfillPattern enum but only Magma values
+// are valid for the reinforcement zone (the GUI dropdown lists only those). An imported
+// profile / edited 3mf / API call could set a non-Magma value, which would build an ordinary
+// infill with no U-tube channels while injection still runs into nothing — so clamp a stray
+// non-Magma outer pattern to Triangle. The non-dual case returns the sparse pattern verbatim
+// (callers use is_magma_pattern() on the result to decide whether the region is Magma at all).
+inline InfillPattern magma_effective_pattern(const PrintRegionConfig &config) {
+    if (config.dual_infill_enabled.value) {
+        InfillPattern outer = config.dual_infill_outer_pattern.value;
+        return is_magma_pattern(outer) ? outer : ipMagmaTriangle;
+    }
+    return config.sparse_infill_pattern.value;
+}
+
 // Per-cell layer presence and interior area
 struct CellPresence {
     int first_layer = INT_MAX;   // first layer where cell exists in magma region
@@ -28,63 +48,46 @@ struct CellPresence {
     std::vector<bool>   layers;  // indexed [layer_id - first_layer]
     std::vector<double> areas;   // parallel, interior area in scaled^2 units
     std::vector<double> distances; // parallel, distance to nearest boundary (mm, unscaled)
+    std::vector<double> opening_radii; // parallel, max injection-point→opening boundary (mm)
+    std::vector<Vec2d>  injection_pts; // parallel, injection point (mm): clipped-opening
+                                       // centroid; == cell centre for unclipped cells
 
     bool   present(int layer_id) const;
     double area(int layer_id) const;
     double distance(int layer_id) const;
-    void   mark_present(int layer_id, double area_val, double dist_val = 0.0);
+    double opening_radius(int layer_id) const;
+    Vec2d  injection_point(int layer_id) const;
+    void   mark_present(int layer_id, double area_val, double dist_val,
+                        double opening_r, const Vec2d &inj_pt);
 };
 
-// A U-tube pair assignment
+// A U-tube pair assignment — for tri-hex, a manifold (one hub + N equal-length vent
+// legs). cell_a is the injection HUB, cell_b the PRIMARY vent leg (the 1-leg U-tube
+// for triangle/square). extra_vents holds any additional legs added by the post-solver
+// extra-vent sweep (empty for triangle/square). All legs span the same [start,cap] with
+// windows pinned to the tube bottom; one injection fills the hub + every leg.
 struct UTubePair {
-    TriangleCell cell_a;          // injection side
-    TriangleCell cell_b;          // vent side
+    TriangleCell cell_a;          // injection side (HUB for tri-hex)
+    TriangleCell cell_b;          // primary vent leg
+    std::vector<TriangleCell> extra_vents;  // tri-hex manifold: additional vent legs (sweep-assigned)
     int  pair_start_layer;        // first layer of this tube segment
     int  pair_end_layer;          // last layer of this tube segment (inclusive)
     double window_end_z;          // Z coordinate (mm) where the window ends — pure mm, no rounding
-    double volume_mm3;            // injection volume (both cells combined)
+    double volume_mm3;            // injection volume (hub + all legs combined)
 
     // Pre-computed during build (avoids lattice + binary search at G-code time)
     Vec2d  injection_center;      // XY center for injection (cell_a centroid at cap layer)
     int    window_center_layer;   // center layer of window gap
 };
 
-// Which edge two adjacent triangle cells share.
-enum class SharedEdge { Horizontal, Col60, Diag120 };
-
-// Determine shared edge type between two adjacent cells.
-// Cells differ in exactly one coordinate (a, b, or c).
-inline SharedEdge shared_edge(const TriangleCell &a, const TriangleCell &b) {
-    if (a.a != b.a) return SharedEdge::Col60;       // differ in a → 60° edge
-    if (a.b != b.b) return SharedEdge::Horizontal;   // differ in b → horizontal
-    return SharedEdge::Diag120;                       // differ in c → 120° edge
-}
-
-// All window gap data for a layer, returned by MagmaTubeMap::window_gaps().
-//
-// Gaps are organized by line family (horizontal, 60°, 120°). Each map key is
-// the line index (row, column, or diagonal), and the value is a sorted,
-// merged list of world-coordinate intervals where lines should be interrupted.
-//
-// - Horizontal: key = row b, intervals are X ranges
-// - Col60:      key = column a, intervals are Y ranges
-// - Diag120:    key = diagonal s (= a+b+1 of UP cell), intervals are Y ranges
-struct WindowGaps {
-    double cell_spacing;
-    double offset_x, offset_y;  // spiral offset for this layer (mm)
-
-    std::map<int, std::vector<std::pair<double, double>>> horiz;
-    std::map<int, std::vector<std::pair<double, double>>> col60;
-    std::map<int, std::vector<std::pair<double, double>>> diag120;
-
-    bool empty() const { return horiz.empty() && col60.empty() && diag120.empty(); }
-};
-
 // Per-layer data: Z heights and pre-built lattice with spiral offset.
 struct LayerData {
-    double          print_z;   // cumulative Z (top of layer)
-    double          height;    // individual layer height
-    TriangleLattice lattice;   // lattice with spiral offset for this layer
+    double print_z;   // cumulative Z (top of layer)
+    double height;    // individual layer height
+    // Lattice (with spiral offset) for this layer, built via the pattern's
+    // factory. shared_ptr because LayerData is copied/stored and the abstract
+    // MagmaLattice is not value-copyable.
+    std::shared_ptr<MagmaLattice> lattice;
 
     double bottom_z() const { return print_z - height; }
 };
@@ -106,14 +109,10 @@ public:
 
     // === Query interface (thread-safe, const) ===
 
-    // Pre-computed window gap intervals for a layer. Returns world-space
-    // intervals for all three line families (horizontal, 60°, 120°) where
-    // infill lines should be interrupted. Shared-edge detection ensures
-    // gaps appear on the correct edge between paired cells.
-    WindowGaps window_gaps(int layer_id) const;
-
-    // Is window open for this cell on this layer?
-    bool is_window_open(const TriangleCell &cell, int layer_id) const;
+    // Is this pair's window open (gap present) on this layer? Pure Z + layer-range
+    // check — no XY geometry. Per-shape toolpaths use this to decide whether to
+    // cut a window gap for the pair, then compute the cut geometry themselves.
+    bool window_open_at(const UTubePair &pair, int layer_id) const;
 
     // Is this cell assigned to a tube (true) or should be solid fill (false)?
     bool is_paired(const TriangleCell &cell) const;
@@ -127,10 +126,24 @@ public:
     // nozzle flat (plus cone, when z-slamming) must cover to seal. Auto tube
     // sizing makes this approximately the nozzle tip flat. Used by auto z-slam.
     double tube_opening_diameter() const;
+    // Actual tube-opening diameter at a pair's cap (injection) layer: 2× the max
+    // distance from the injection cell centre to its clipped opening boundary.
+    // Falls back to tube_opening_diameter() if unavailable. Drives the per-tube
+    // auto z-slam so the seal matches each tube's real opening.
+    double cap_opening_diameter(const UTubePair &pair) const;
+    // Centre-to-centre distance to an edge-sharing neighbour cell (injection crater
+    // clearance), via the active pattern's geometry.
+    double neighbor_centroid_distance() const;
+    // Per-layer render bore (mm) for a cell's injected column: the cell's ideal open bore
+    // (kind 0 = interior width; tri-hex vent = inset-triangle inscribed) scaled by
+    // sqrt(clipped_area(layer) / max_area), so a column narrows on layers where the part
+    // clips the cell. Cosmetic (preview only).
+    double cell_bore_at(const TriangleCell &cell, int layer) const;
 
     // Pre-built lattice with spiral offset for a given layer.
-    // Eliminates repeated sin/cos + TriangleLattice construction.
-    const TriangleLattice& lattice_at(int layer_id) const { return m_layer_data[layer_id].lattice; }
+    // Eliminates repeated sin/cos + lattice construction. Returned through the
+    // MagmaLattice interface so consumers stay pattern-agnostic.
+    const MagmaLattice& lattice_at(int layer_id) const { return *m_layer_data[layer_id].lattice; }
 
     // Window center layer for a U-tube pair: the layer at or above
     // the Z midpoint of the window gap.  Tube fill exists from this
@@ -173,12 +186,18 @@ private:
 
     // Build phases
     void scan_layers(const std::vector<Layer*> &layers);
-    void detect_constrictions();
     void assign_tubes(ProgressFn progress_fn, ThrowIfCanceled throw_if_canceled);
+    // Tri-hex only: purely-additive post-solver pass that gives each vent extra legs
+    // on bordering hub-tubes whose full range it can fill (see DESIGN-TRIHEX.md §4).
+    void assign_extra_vents();
     void precompute_window_end_z();
     void precompute_injection_data();
-    void precompute_window_gaps();
     void compute_volumes(const std::vector<Layer*> &layers);
+
+    // Zero-offset lattice for cell IDENTITY (a,b,c,kind) + topology (neighbors/is_up).
+    // Both are offset-independent, so one cached instance serves scan_layers, the solver,
+    // and the extra-vent sweep instead of each constructing its own. Lazily built.
+    const MagmaLattice& topology_lattice() const;
 
     // Adaptive layer height helpers
     int    layer_at_height_from(int start_layer, double target_mm) const;
@@ -196,8 +215,14 @@ private:
     // Indexed by layer_id. Built in build() from the layers vector.
     std::vector<LayerData> m_layer_data;
 
-    // Pre-computed window gaps (built during build(), not mutable)
-    std::unordered_map<int, WindowGaps> m_window_gaps_cache;
+    // Cached zero-offset lattice (cell identity + topology); see topology_lattice().
+    mutable std::unique_ptr<MagmaLattice> m_topology_lattice;
+
+    // Pattern selection (geometry formulas + lattice construction).
+    // m_geometry points at the shared, stateless per-shape strategy
+    // (magma_geometry_for); m_pattern picks the lattice factory.
+    InfillPattern         m_pattern = ipMagmaTriangle;
+    const MagmaGeometry  *m_geometry = nullptr;
 
     // Config
     SpiralParams m_spiral_params;
@@ -205,6 +230,8 @@ private:
     double m_cell_spacing;
     float  m_interior_width;
     float  m_line_width;
+    double m_min_cap_clearance = 0.0; // min centre→boundary clearance for a sealable
+                                      // injection (≈ nozzle flat radius + margin)
     float  m_layer_height;            // nominal config layer height (fallback)
     float  m_min_layer_height;        // smallest layer height in the object
     double m_dodge_distance;          // boundary dodge distance in mm (stagger target)

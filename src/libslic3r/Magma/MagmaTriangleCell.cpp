@@ -62,35 +62,14 @@ double calculate_auto_interior_width_from_od(double nozzle_od, double line_width
     return std::max(0.1, IW);
 }
 
-// Auto-calculate window height in mm so that window cross-sectional area
-// approximately matches tube interior cross-section.
-//
-// The window is a vertical slit between two adjacent cell interiors where
-// the shared infill line is omitted. Plastic flows perpendicular to the
-// shared edge, so the cross-section it sees is:
-//   inset_side × window_height
-// where inset_side = edge_len - line_width × √3 (the gap length between
-// the two inset triangle interiors along the shared edge).
-//
-// Setting window cross-section = tube interior area:
-//   inset_side × window_height = inset_triangle_area
-//   window_height = inset_triangle_area / inset_side
-static double calculate_auto_window_height_mm(double interior_width, double line_width)
-{
-    double cell_spacing = cell_spacing_from_geometry(interior_width, line_width);
-    double tube_area = inset_triangle_area(cell_spacing, line_width);
-    double side = triangle_side_length(cell_spacing);
-    double inset_side = side - line_width * SQRT3;
-    if (inset_side <= 0)
-        return 0.1;
-    // Geometric "calculated" window height: cross-section equals the tube
-    // interior. The caller (from_config) adds a layer-height cushion on top so
-    // the window reliably spans a full printed layer.
-    double window_height_mm = tube_area / inset_side;
-    return std::max(0.1, window_height_mm);
-}
+// Auto window height now lives on each MagmaGeometry impl
+// (TriangleGeometry::auto_window_height / SquareGeometry::auto_window_height),
+// so the formula matches the cell shape. WindowSpec::from_config dispatches to
+// geom.auto_window_height(); the triangle version is byte-identical to the old
+// calculate_auto_window_height_mm that lived here.
 
 WindowSpec WindowSpec::from_config(
+    const MagmaGeometry& geom,
     float config_window_height_mm,
     float interior_width,
     float line_width,
@@ -102,7 +81,7 @@ WindowSpec WindowSpec::from_config(
     // Auto adds one layer height above the geometric value so the window
     // reliably spans a full printed layer despite layer-registration accuracy.
     if (config_window_height_mm <= 0)
-        spec.window_height_mm = calculate_auto_window_height_mm(interior_width, line_width)
+        spec.window_height_mm = geom.auto_window_height(interior_width, line_width)
                                 + std::max(0.0f, layer_height);
     else
         spec.window_height_mm = config_window_height_mm;
@@ -120,26 +99,26 @@ Vec2d TriangleLattice::cell_center(const TriangleCell& cell) const
     // Centroid of the triangle within the lattice parallelogram cell (a, b).
     // Up triangle vertices: lattice (a,b), (a+1,b), (a,b+1) → centroid at (a+1/3, b+1/3)
     // Down triangle vertices: lattice (a+1,b), (a,b+1), (a+1,b+1) → centroid at (a+2/3, b+2/3)
-    if (cell.is_up()) {
+    if (is_up(cell)) {
         return to_world(cell.a + 1.0 / 3.0, cell.b + 1.0 / 3.0);
     } else {
         return to_world(cell.a + 2.0 / 3.0, cell.b + 2.0 / 3.0);
     }
 }
 
-std::array<Vec2d, 3> TriangleLattice::cell_corners(const TriangleCell& cell) const
+std::vector<Vec2d> TriangleLattice::cell_corners(const TriangleCell& cell) const
 {
     // Use exact lattice vertex positions for correct geometry.
     // Up triangle at (a,b): vertices at lattice (a,b), (a+1,b), (a,b+1)
     // Down triangle at (a,b): vertices at lattice (a+1,b), (a,b+1), (a+1,b+1)
-    if (cell.is_up()) {
-        return {{ to_world(cell.a, cell.b),
-                  to_world(cell.a + 1, cell.b),
-                  to_world(cell.a, cell.b + 1) }};
+    if (is_up(cell)) {
+        return { to_world(cell.a, cell.b),
+                 to_world(cell.a + 1, cell.b),
+                 to_world(cell.a, cell.b + 1) };
     } else {
-        return {{ to_world(cell.a + 1, cell.b),
-                  to_world(cell.a, cell.b + 1),
-                  to_world(cell.a + 1, cell.b + 1) }};
+        return { to_world(cell.a + 1, cell.b),
+                 to_world(cell.a, cell.b + 1),
+                 to_world(cell.a + 1, cell.b + 1) };
     }
 }
 

@@ -83,15 +83,16 @@ enum InfillPattern : int {
     ipCrossHatch, ipTpmsD, ipTpmsFK, ipGyroid,
     ipConcentric, ipHilbertCurve, ipArchimedeanChords, ipOctagramSpiral,
     ipSupportBase, ipConcentricInternal,
-    // Magma infill pattern for vertical reinforcement
+    // Magma infill patterns for vertical reinforcement
     ipMagmaTriangle,
+    ipMagmaRectilinear,
+    ipMagmaTriHex,
     ipCount,
 };
 
 // Returns true for all Magma infill patterns (solid after injection during printing).
-// Add future Magma geometries here (ipMagmaHex, etc.)
 inline bool is_magma_pattern(InfillPattern p) {
-    return p == ipMagmaTriangle;
+    return p == ipMagmaTriangle || p == ipMagmaRectilinear || p == ipMagmaTriHex;
 }
 
 enum class MagmaTubeWidthMode : int {
@@ -1274,6 +1275,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Dual infill zones configuration (inner/outer zones with shell boundary)
     // Outer zone always uses Magma Triangle infill at 100% density
     ((ConfigOptionBool,                 dual_infill_enabled))
+    ((ConfigOptionEnum<InfillPattern>,    dual_infill_outer_pattern))  // Magma pattern for outer (reinforcement) zone
     ((ConfigOptionFloat,                dual_infill_outer_width))      // Width of outer zone (mm)
     ((ConfigOptionInt,                  dual_infill_shell_walls))      // Number of shell walls
     ((ConfigOptionFloatOrPercent,       dual_infill_shell_width))      // Shell wall line width

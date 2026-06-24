@@ -889,8 +889,10 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 if (surface.is_zone_inner()) {
                     // Yolk: user's sparse_infill_pattern already set as default above
                 } else if (surface.surface_type == stInternal && region_config.dual_infill_enabled) {
-                    // Outer zone: always Magma Triangle
-                    params.pattern = ipMagmaTriangle;
+                    // Outer zone: the selected Magma reinforcement pattern. magma_effective_pattern
+                    // clamps a stray non-Magma value (imported profile / 3mf / API) to Triangle so
+                    // the zone always has injectable channels and matches MagmaTubeMap::build.
+                    params.pattern = magma::magma_effective_pattern(region_config);
                 } else if (surface.is_zone_boundary()) {
                     // Zone floor/ceiling are solid shell surfaces
                     params.pattern = region_config.internal_solid_infill_pattern.value;
@@ -1276,7 +1278,9 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         } else if (surface_fill.params.pattern == ipLightning) {
             dynamic_cast<FillLightning::Filler*>(f.get())->generator = lightning_generator;
         } else if (is_magma_pattern(surface_fill.params.pattern)) {
-            auto* fill_magma = dynamic_cast<FillMagmaTriangle*>(f.get());
+            // Cast to the shared Magma base so any pattern (triangle today,
+            // square/rectilinear later) gets its tube_map attached.
+            auto* fill_magma = dynamic_cast<FillMagmaBase*>(f.get());
             if (fill_magma)
                 fill_magma->tube_map = tube_map;
         }
@@ -1438,6 +1442,13 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         case ipCount: continue; break;
         case ipSupportBase: continue; break;
         case ipConcentricInternal: continue; break;
+        // Magma reinforcement zones build U-tube channels from a tube map that isn't available
+        // in this anchoring path; they contribute no internal-bridge anchor lines. Skip them,
+        // else new_from_type() builds a FillMagma with a null tube_map that logs an error every
+        // layer and returns nothing.
+        case ipMagmaTriangle:
+        case ipMagmaRectilinear:
+        case ipMagmaTriHex: continue; break;
         case ipLightning:
 		case ipAdaptiveCubic:
         case ipSupportCubic:
