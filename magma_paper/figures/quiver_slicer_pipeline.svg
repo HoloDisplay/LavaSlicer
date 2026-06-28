@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 455.9 77.6">
+<!-- SVG created with Arrow, by QuiverAI (https://quiver.ai) -->
+  <style type="text/css">.cls-0 {fill:#71AD6E;}
+.cls-1 {fill:none;stroke:#72AB6D;stroke-width:1.8429;stroke-linecap:round;stroke-miterlimit:10;}
+.cls-2 {fill:#5CA9A7;}
+.cls-3 {fill:none;stroke:#5CA9A7;stroke-width:1.6904;stroke-linecap:round;stroke-miterlimit:10;}
+.cls-4 {fill:#C15087;}
+.cls-5 {fill:none;stroke:#548CB8;stroke-width:1.6902;stroke-linecap:round;stroke-miterlimit:10;}
+.cls-6 {fill:#548DB8;}</style>
+  <path class="cls-0" d="m94.6 59.4h-69.6c-3.4 0-6.4-3.1-6.4-6.5v-28.4c0-3.5 3-6.5 6.4-6.5h70.2c3.2 0 5.8 3 5.8 6.5v27.9c0 3.7-2.7 6.3-6.4 7z"/>
+  <line class="cls-1" x1="100.7" x2="128.6" y1="38.7" y2="38.7"/>
+  <polyline class="cls-1" points="124.3 34.5 129 38.7 124.3 42.9"/>
+  <path class="cls-2" d="m206.8 59.4h-69.7c-3.1 0-6.4-2.3-6.5-6v-28.9c0.1-3.2 3-6.5 6.5-6.5h69.7c3.4 0 6.3 3 6.3 6.5v28.9c-0.1 3.1-3.1 6-6.3 6z"/>
+  <line class="cls-3" x1="213.1" x2="239.6" y1="38.7" y2="38.7"/>
+  <polyline class="cls-3" points="235.4 34.5 239.6 38.7 235.4 42.9"/>
+  <path class="cls-4" d="m318.1 59.4h-70.2c-3.2 0-6.4-2.8-6.4-6.4v-28.5c0-3.2 2.6-6.5 6.4-6.5h70.1c3.4 0 6.5 3.1 6.5 6.5v28.5c0 3.4-3 6.4-6.4 6.4z"/>
+  <line class="cls-5" x1="324.6" x2="352.9" y1="38.6" y2="38.5"/>
+  <polyline class="cls-5" points="348.1 34.4 352.9 38.6 347.9 42.9"/>
+  <path class="cls-6" d="m430.5 59.4h-71.8c-2.7-0.7-4.8-2.8-4.8-5.6v-29.3c0-3.2 2.9-6.5 6-6.5h71c3.2 0 6.2 2.6 6.2 6.5v28.9c-0.2 3.2-3 6-6.6 6z"/>
+</svg>
