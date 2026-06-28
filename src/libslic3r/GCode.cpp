@@ -3407,10 +3407,11 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 // we'll process only matching volumes below
             }
 
-            // Compute volume and find injection point from the mesh
+            // Compute volume and find injection point from the injection body mesh.
+            // The injection point is the center of the circular opening at the top
+            // of the injection body, at the highest printed layer Z.
             double total_volume_mm3 = 0.0;
             double inject_x = 0.0, inject_y = 0.0;
-            double top_z = -1e30;
             bool   found_inject_point = false;
 
             for (const ModelVolume *vol : model_obj->volumes) {
@@ -3423,89 +3424,72 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 if (inject_name.empty() && !is_inject_object)
                     continue;
 
-                // Get the mesh and its transform
                 const TriangleMesh &mesh = vol->mesh();
                 const indexed_triangle_set &its = mesh.its;
+                const Transform3d &vol_trafo = vol->get_matrix();
 
-                // Volume in model coordinates
-                total_volume_mm3 += std::abs(its_volume(its));
+                // Compute volume (scale-aware)
+                total_volume_mm3 += std::abs(its_volume(its)) * std::abs(vol_trafo.matrix().block<3,3>(0,0).determinant());
 
-                // Find injection point: centroid of topmost up-facing facets
-                // (Clayton's approach: find up-facing horizontal facets, highest group = rim,
-                //  next highest interior group = pocket floor, but for a simple injection body
-                //  the top face IS the injection point)
-                //
-                // For the injection body, the top face center is where the nozzle goes.
-                // We find all facets with normal Z > 0.9 (up-facing), get the highest group,
-                // and compute their centroid.
-                struct FacetGroup { double z; double cx; double cy; double area; int count; };
+                // Transform all vertices to object-space using the volume's transform,
+                // then find the topmost up-facing facets (the circular injection port).
+                struct FacetGroup { double cx; double cy; double area; int count; };
                 std::map<int, FacetGroup> z_groups; // key = z*100 rounded
 
                 for (size_t i = 0; i < its.indices.size(); ++i) {
-                    const Vec3f &v0 = its.vertices[its.indices[i](0)];
-                    const Vec3f &v1 = its.vertices[its.indices[i](1)];
-                    const Vec3f &v2 = its.vertices[its.indices[i](2)];
+                    // Transform vertices to object space
+                    Vec3d tv0 = vol_trafo * its.vertices[its.indices[i](0)].cast<double>();
+                    Vec3d tv1 = vol_trafo * its.vertices[its.indices[i](1)].cast<double>();
+                    Vec3d tv2 = vol_trafo * its.vertices[its.indices[i](2)].cast<double>();
 
-                    // Compute face normal
-                    Vec3f e1 = v1 - v0;
-                    Vec3f e2 = v2 - v0;
-                    Vec3f normal = e1.cross(e2);
-                    float len = normal.norm();
-                    if (len < 1e-10f) continue;
+                    // Compute face normal in object space
+                    Vec3d e1 = tv1 - tv0;
+                    Vec3d e2 = tv2 - tv0;
+                    Vec3d normal = e1.cross(e2);
+                    double len = normal.norm();
+                    if (len < 1e-10) continue;
                     normal /= len;
 
                     // Up-facing facet (normal Z > 0.9)
-                    if (normal.z() > 0.9f) {
-                        float avg_z = (v0.z() + v1.z() + v2.z()) / 3.0f;
-                        int z_key = (int)std::round(avg_z * 100.0f);
+                    if (normal.z() > 0.9) {
+                        double avg_z = (tv0.z() + tv1.z() + tv2.z()) / 3.0;
+                        int z_key = (int)std::round(avg_z * 100.0);
 
-                        float cx = (v0.x() + v1.x() + v2.x()) / 3.0f;
-                        float cy = (v0.y() + v1.y() + v2.y()) / 3.0f;
-                        // Triangle area in XY
-                        float area = std::abs((v1.x()-v0.x())*(v2.y()-v0.y()) - (v2.x()-v0.x())*(v1.y()-v0.y())) / 2.0f;
+                        double cx = (tv0.x() + tv1.x() + tv2.x()) / 3.0;
+                        double cy = (tv0.y() + tv1.y() + tv2.y()) / 3.0;
+                        double area = std::abs((tv1.x()-tv0.x())*(tv2.y()-tv0.y()) - (tv2.x()-tv0.x())*(tv1.y()-tv0.y())) / 2.0;
 
                         auto &g = z_groups[z_key];
-                        if (g.count == 0) { g.z = avg_z; g.cx = 0; g.cy = 0; g.area = 0; g.count = 0; }
                         g.cx += cx; g.cy += cy; g.area += area; g.count++;
                     }
                 }
 
-                // Find the highest z group (this is the top face / injection port)
+                // Find the highest z group — this is the top circular face (injection port)
                 int best_key = INT_MIN;
-                for (auto &[key, g] : z_groups) {
+                for (auto &[key, g] : z_groups)
                     if (key > best_key)
                         best_key = key;
-                }
-                if (best_key != INT_MIN) {
+
+                if (best_key != INT_MIN && !obj->instances().empty()) {
                     auto &g = z_groups[best_key];
-                    // Centroid in model coordinates
-                    double model_cx = g.cx / g.count;
-                    double model_cy = g.cy / g.count;
-                    top_z = g.z;
+                    // Centroid in object-local coordinates
+                    double obj_cx = g.cx / g.count;
+                    double obj_cy = g.cy / g.count;
 
-                    // Transform model coordinates to bed coordinates
-                    // Use the first instance's placement
-                    if (!obj->instances().empty()) {
-                        const PrintInstance &inst = obj->instances().front();
-                        BoundingBoxf3 bbox = inst.get_bounding_box();
-                        // The bounding box center gives us the bed-space center,
-                        // and model center gives us the model-space center.
-                        // Offset = bbox_center - model_center
-                        BoundingBoxf3 model_bbox = mesh.bounding_box();
-                        double offset_x = bbox.center().x() - model_bbox.center().x();
-                        double offset_y = bbox.center().y() - model_bbox.center().y();
-                        inject_x = model_cx + offset_x;
-                        inject_y = model_cy + offset_y;
-
-                        // Use the instance bbox top Z for the rim
-                        top_z = bbox.max.z();
-                        found_inject_point = true;
-                    }
+                    // Transform from object space to bed space using the instance placement
+                    const PrintInstance &inst = obj->instances().front();
+                    Vec3d bed_pt = inst.model_instance->get_matrix() * Vec3d(obj_cx, obj_cy, 0);
+                    inject_x = bed_pt.x();
+                    inject_y = bed_pt.y();
+                    found_inject_point = true;
                 }
             }
 
             if (!found_inject_point || total_volume_mm3 < 1.0)
                 continue;
+
+            // Use the highest printed layer Z as the rim (top of the mold)
+            double top_z = m_max_layer_z;
 
             // Translate to print space
             Vec2d inject_pt = print.translate_to_print_space(Vec2d(inject_x, inject_y));

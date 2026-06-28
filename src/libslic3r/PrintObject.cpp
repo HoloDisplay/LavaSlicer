@@ -3496,7 +3496,8 @@ SlicingParameters PrintObject::slicing_parameters(const DynamicPrintConfig &full
 
 	std::vector<unsigned int> object_extruders;
 	for (const ModelVolume* model_volume : model_object.volumes)
-		if (model_volume->is_model_part()) {
+		if (model_volume->is_model_part() &&
+			(model_object.inject_skip_volume_name.empty() || model_volume->name != model_object.inject_skip_volume_name)) {
 			PrintRegion::collect_object_printing_extruders(
 				print_config,
 				region_config_from_model_volume(default_region_config, nullptr, *model_volume, filament_extruders),

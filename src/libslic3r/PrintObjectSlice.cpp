@@ -1156,11 +1156,22 @@ void PrintObject::slice_volumes()
     }
 
     std::vector<float>                   slice_zs      = zs_from_layers(m_layers);
+
+    // LavaSlicer: filter out injection body volume from slicing
+    ModelVolumePtrs slicing_volumes = this->model_object()->volumes;
+    const std::string &inject_skip = print->config().inject_object_name.value;
+    if (!inject_skip.empty()) {
+        slicing_volumes.erase(
+            std::remove_if(slicing_volumes.begin(), slicing_volumes.end(),
+                [&inject_skip](const ModelVolume *v) { return v->name == inject_skip; }),
+            slicing_volumes.end());
+    }
+
     std::vector<VolumeSlices> objSliceByVolume;
     if (!slice_zs.empty()) {
         objSliceByVolume = slice_volumes_inner(
             print->config(), this->config(), this->trafo_centered(),
-            this->model_object()->volumes, m_shared_regions->layer_ranges, slice_zs, throw_on_cancel_callback);
+            slicing_volumes, m_shared_regions->layer_ranges, slice_zs, throw_on_cancel_callback);
     }
 
     //BBS: "model_part" volumes are grouded according to their connections
@@ -1171,7 +1182,7 @@ void PrintObject::slice_volumes()
     firstLayerObjSliceByVolume = objSliceByVolume;
 
     std::vector<std::vector<ExPolygons>> region_slices =
-        slices_to_regions(print->config(), *this, this->model_object()->volumes, *m_shared_regions, slice_zs,
+        slices_to_regions(print->config(), *this, slicing_volumes, *m_shared_regions, slice_zs,
                           std::move(objSliceByVolume), PrintObject::clip_multipart_objects, throw_on_cancel_callback);
 
     for (size_t region_id = 0; region_id < region_slices.size(); ++ region_id) {

@@ -373,6 +373,8 @@ public:
     LayerHeightProfile      layer_height_profile;
     // Whether or not this object is printable
     bool                    printable { true };
+    // LavaSlicer: volume name to skip during slicing (injection body)
+    std::string             inject_skip_volume_name;
 
     // This vector holds position of selected support points for SLA. The data are
     // saved in mesh coordinates to allow using them for several instances.

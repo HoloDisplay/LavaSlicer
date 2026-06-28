@@ -1525,7 +1525,8 @@ TriangleMesh ModelObject::raw_mesh() const
 {
     TriangleMesh mesh;
     for (const ModelVolume *v : this->volumes)
-        if (v->is_model_part())
+        if (v->is_model_part() &&
+            (inject_skip_volume_name.empty() || v->name != inject_skip_volume_name))
         {
             TriangleMesh vol_mesh(v->mesh());
             vol_mesh.transform(v->get_matrix());
@@ -1542,7 +1543,8 @@ indexed_triangle_set ModelObject::raw_indexed_triangle_set() const
     size_t num_vertices = 0;
     size_t num_faces    = 0;
     for (const ModelVolume *v : this->volumes)
-        if (v->is_model_part()) {
+        if (v->is_model_part() &&
+            (inject_skip_volume_name.empty() || v->name != inject_skip_volume_name)) {
             num_vertices += v->mesh().its.vertices.size();
             num_faces    += v->mesh().its.indices.size();
         }
@@ -1550,7 +1552,8 @@ indexed_triangle_set ModelObject::raw_indexed_triangle_set() const
     out.vertices.reserve(num_vertices);
     out.indices.reserve(num_faces);
     for (const ModelVolume *v : this->volumes)
-        if (v->is_model_part()) {
+        if (v->is_model_part() &&
+            (inject_skip_volume_name.empty() || v->name != inject_skip_volume_name)) {
             size_t i = out.vertices.size();
             size_t j = out.indices.size();
             append(out.vertices, v->mesh().its.vertices);
@@ -1573,7 +1576,8 @@ const BoundingBoxf3& ModelObject::raw_mesh_bounding_box() const
         m_raw_mesh_bounding_box_valid = true;
         m_raw_mesh_bounding_box.reset();
         for (const ModelVolume *v : this->volumes)
-            if (v->is_model_part())
+            if (v->is_model_part() &&
+                (inject_skip_volume_name.empty() || v->name != inject_skip_volume_name))
                 m_raw_mesh_bounding_box.merge(v->mesh().transformed_bounding_box(v->get_matrix()));
     }
     return m_raw_mesh_bounding_box;

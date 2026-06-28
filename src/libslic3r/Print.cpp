@@ -2073,6 +2073,23 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     for (PrintObject *obj : m_objects)
         obj->clear_shared_object();
 
+    // LavaSlicer: set inject_skip_volume_name on model objects so raw_mesh() excludes the injection body
+    if (this->config().inject_mode.value) {
+        const std::string &inject_name = this->config().inject_object_name.value;
+        if (!inject_name.empty()) {
+            for (PrintObject *obj : m_objects) {
+                ModelObject *model_obj = obj->model_object();
+                if (!model_obj) continue;
+                for (const ModelVolume *vol : model_obj->volumes) {
+                    if (vol->is_model_part() && vol->name == inject_name) {
+                        model_obj->inject_skip_volume_name = inject_name;
+                                                break;
+                    }
+                }
+            }
+        }
+    }
+
     //add the print_object share check logic
     auto is_print_object_the_same = [this](const PrintObject* object1, const PrintObject* object2) -> bool{
         if (object1->trafo().matrix() != object2->trafo().matrix())
@@ -2126,25 +2143,6 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         for (int index = 0; index < object_count; index++)
         {
             PrintObject *obj =  m_objects[index];
-            // LavaSlicer: skip injection bodies — they are not printed
-            bool is_inject_body = obj->config().inject_body.value;
-            if (!is_inject_body && this->config().inject_mode.value) {
-                const std::string &inject_name = this->config().inject_object_name.value;
-                if (!inject_name.empty() && obj->model_object() && obj->model_object()->name == inject_name)
-                    is_inject_body = true;
-            }
-            if (is_inject_body) {
-                if (obj->set_started(posSlice))           obj->set_done(posSlice);
-                if (obj->set_started(posPerimeters))      obj->set_done(posPerimeters);
-                if (obj->set_started(posEstimateCurledExtrusions)) obj->set_done(posEstimateCurledExtrusions);
-                if (obj->set_started(posPrepareInfill))   obj->set_done(posPrepareInfill);
-                if (obj->set_started(posInfill))          obj->set_done(posInfill);
-                if (obj->set_started(posIroning))         obj->set_done(posIroning);
-                if (obj->set_started(posContouring))      obj->set_done(posContouring);
-                if (obj->set_started(posSupportMaterial)) obj->set_done(posSupportMaterial);
-                if (obj->set_started(posDetectOverhangsForLift)) obj->set_done(posDetectOverhangsForLift);
-                continue;
-            }
             for (PrintObject *slicing_obj : need_slicing_objects)
             {
                 if (is_print_object_the_same(obj, slicing_obj)) {
@@ -2509,6 +2507,14 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         if (conflictRes.has_value()) {
             BOOST_LOG_TRIVIAL(error) << boost::format("gcode path conflicts found between %1% and %2%")%conflictRes.value()._objName1 %conflictRes.value()._objName2;
         }
+    }
+
+    // LavaSlicer: clear inject_skip_volume_name after slicing
+    for (PrintObject *obj : m_objects) {
+        ModelObject *model_obj = obj->model_object();
+        if (model_obj && !model_obj->inject_skip_volume_name.empty()) {
+            model_obj->inject_skip_volume_name.clear();
+                    }
     }
 
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
