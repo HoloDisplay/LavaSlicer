@@ -3528,8 +3528,9 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             // Lift Z high to clear part before any tool change movement
             file.write_format("G1 Z%.3f F600          ; lift clear of part for tool change\n", top_z + 40.0);
 
-            // Tool change if needed — use simple T command, firmware handles park/pick
-            if (inject_tool_id != mold_tool_id) {
+            // Tool change if needed — only emit T command if printer has multiple extruders configured
+            int num_extruders = (int)print.config().nozzle_diameter.size();
+            if (inject_tool_id != mold_tool_id && inject_tool_id < num_extruders && num_extruders > 1) {
                 file.write_format("; --- tool change: mold T%d -> inject T%d ---\n",
                                   mold_tool_id, inject_tool_id);
                 file.write_format("M104 S%d T%d           ; preheat inject tool\n",
@@ -3537,9 +3538,9 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 file.write_format("T%d                     ; switch to inject tool\n", inject_tool_id);
                 file.write_format("M109 S%d               ; wait for inject temp\n", inject_temp);
             } else {
-                file.write_format("M104 S%d               ; heat inject tool T%d\n",
-                                  inject_temp, inject_tool_id);
-                file.write_format("M109 S%d               ; wait\n", inject_temp);
+                // Same tool or single-extruder: just change temperature on current tool
+                file.write_format("M104 S%d               ; set injection temp\n", inject_temp);
+                file.write_format("M109 S%d               ; wait for injection temp\n", inject_temp);
             }
 
             // Travel to injection point
