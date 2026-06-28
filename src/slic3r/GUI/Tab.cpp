@@ -2684,6 +2684,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("inject_object_name");
         optgroup->append_single_option_line("inject_temperature");
         optgroup->append_single_option_line("inject_bed_temperature");
+        optgroup->append_single_option_line("inject_heat_soak_time");
         optgroup->append_single_option_line("inject_tool");
         optgroup->append_single_option_line("inject_fill_ratio");
         optgroup->append_single_option_line("inject_plunge_depth");

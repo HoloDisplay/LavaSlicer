@@ -4699,7 +4699,19 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = 200;
     def->mode = comSimple;
-    def->set_default_value(new ConfigOptionInt(0));
+    def->set_default_value(new ConfigOptionInt(100));
+
+    def = this->add("inject_heat_soak_time", coInt);
+    def->label = L("Injection heat soak time");
+    def->category = L("Others");
+    def->tooltip = L("Delay in seconds after the bed reaches injection temperature, "
+                     "allowing the heat to soak into the printed mold before injection begins. "
+                     "Set to 0 for no delay.");
+    def->sidetext = L("s");
+    def->min = 0;
+    def->max = 600;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionInt(120));
 
     def = this->add("inject_object_name", coString);
     def->label = L("Injection body name");
