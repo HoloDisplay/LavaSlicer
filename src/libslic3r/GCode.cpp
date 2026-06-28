@@ -3408,8 +3408,11 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             }
 
             // Compute volume and find injection point from the injection body mesh.
-            // The injection point is the center of the circular opening at the top
-            // of the injection body, at the highest printed layer Z.
+            // The injection point is the center of the circular opening on the
+            // mold's top layer — this corresponds to the XY center of the injection
+            // body's cross-section at that Z. We use the injection body's bounding
+            // box XY center as the injection point, since the circular port is
+            // concentric with the body.
             double total_volume_mm3 = 0.0;
             double inject_x = 0.0, inject_y = 0.0;
             bool   found_inject_point = false;
@@ -3431,56 +3434,15 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 // Compute volume (scale-aware)
                 total_volume_mm3 += std::abs(its_volume(its)) * std::abs(vol_trafo.matrix().block<3,3>(0,0).determinant());
 
-                // Transform all vertices to object-space using the volume's transform,
-                // then find the topmost up-facing facets (the circular injection port).
-                struct FacetGroup { double cx; double cy; double area; int count; };
-                std::map<int, FacetGroup> z_groups; // key = z*100 rounded
-
-                for (size_t i = 0; i < its.indices.size(); ++i) {
-                    // Transform vertices to object space
-                    Vec3d tv0 = vol_trafo * its.vertices[its.indices[i](0)].cast<double>();
-                    Vec3d tv1 = vol_trafo * its.vertices[its.indices[i](1)].cast<double>();
-                    Vec3d tv2 = vol_trafo * its.vertices[its.indices[i](2)].cast<double>();
-
-                    // Compute face normal in object space
-                    Vec3d e1 = tv1 - tv0;
-                    Vec3d e2 = tv2 - tv0;
-                    Vec3d normal = e1.cross(e2);
-                    double len = normal.norm();
-                    if (len < 1e-10) continue;
-                    normal /= len;
-
-                    // Up-facing facet (normal Z > 0.9)
-                    if (normal.z() > 0.9) {
-                        double avg_z = (tv0.z() + tv1.z() + tv2.z()) / 3.0;
-                        int z_key = (int)std::round(avg_z * 100.0);
-
-                        double cx = (tv0.x() + tv1.x() + tv2.x()) / 3.0;
-                        double cy = (tv0.y() + tv1.y() + tv2.y()) / 3.0;
-                        double area = std::abs((tv1.x()-tv0.x())*(tv2.y()-tv0.y()) - (tv2.x()-tv0.x())*(tv1.y()-tv0.y())) / 2.0;
-
-                        auto &g = z_groups[z_key];
-                        g.cx += cx; g.cy += cy; g.area += area; g.count++;
-                    }
-                }
-
-                // Find the highest z group — this is the top circular face (injection port)
-                int best_key = INT_MIN;
-                for (auto &[key, g] : z_groups)
-                    if (key > best_key)
-                        best_key = key;
-
-                if (best_key != INT_MIN && !obj->instances().empty()) {
-                    auto &g = z_groups[best_key];
-                    // Centroid in object-local coordinates
-                    double obj_cx = g.cx / g.count;
-                    double obj_cy = g.cy / g.count;
-
-                    // Transform from object space to bed space using the instance placement
+                // Get the bounding box of this volume in bed coordinates.
+                // The XY center of the bounding box = center of the circular
+                // opening on the mold's top layer.
+                if (!obj->instances().empty()) {
                     const PrintInstance &inst = obj->instances().front();
-                    Vec3d bed_pt = inst.model_instance->get_matrix() * Vec3d(obj_cx, obj_cy, 0);
-                    inject_x = bed_pt.x();
-                    inject_y = bed_pt.y();
+                    Transform3d full_trafo = inst.model_instance->get_matrix() * vol_trafo;
+                    BoundingBoxf3 vol_bbox = mesh.transformed_bounding_box(full_trafo);
+                    inject_x = vol_bbox.center().x();
+                    inject_y = vol_bbox.center().y();
                     found_inject_point = true;
                 }
             }
