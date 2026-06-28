@@ -3373,6 +3373,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         const int    inject_tool_id  = print.config().inject_tool.value;
         const int    inject_temp     = print.config().inject_temperature.value;
         const int    inject_bed_temp = print.config().inject_bed_temperature.value;
+        const int    heat_soak_secs  = print.config().inject_heat_soak_time.value;
         const double fill_ratio      = print.config().inject_fill_ratio.value / 100.0;
         const double plunge_depth    = print.config().inject_plunge_depth.value;
         const double filament_dia    = print.config().filament_diameter.get_at(inject_tool_id);
@@ -3517,6 +3518,11 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             if (inject_bed_temp > 0) {
                 file.write_format("M140 S%d               ; set injection bed temp\n", inject_bed_temp);
                 file.write_format("M190 S%d               ; wait for injection bed temp\n", inject_bed_temp);
+            }
+
+            // Heat soak delay — let the bed temperature soak into the mold
+            if (heat_soak_secs > 0) {
+                file.write_format("G4 S%d                 ; heat soak %d seconds\n", heat_soak_secs, heat_soak_secs);
             }
 
             // Tool change if needed
