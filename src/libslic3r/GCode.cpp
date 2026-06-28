@@ -3507,6 +3507,17 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             double plunge_z = rim_z - plunge_depth;
 
             file.write(";===================================================\n");
+            // Add GCode processor tags so the injection shows in the preview
+            file.write(";LAYER_CHANGE\n");
+            file.write_format(";Z:%.3f\n", rim_z);
+            file.write_format(";HEIGHT:%.3f\n", plunge_depth);
+            file.write_format(";%s%s\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Role).c_str(),
+                              ExtrusionEntity::role_to_string(erCustom).c_str());
+            file.write_format(";%s%.4f\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Width).c_str(),
+                              print.config().nozzle_diameter.get_at(inject_tool_id));
+            file.write_format(";%s%.4f\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Height).c_str(),
+                              plunge_depth);
+
             file.write("; LAVASLICER INJECTION (native, based on magma_inject.py)\n");
             file.write_format("; cavity volume %.0f mm^3 -> inject %.0f mm^3 (%.0f%%)\n",
                               total_volume_mm3, volume_to_inject, fill_ratio * 100.0);
