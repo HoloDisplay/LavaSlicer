@@ -1601,6 +1601,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionInt,                 inject_tool))
     ((ConfigOptionPercent,             inject_fill_ratio))
     ((ConfigOptionFloat,               inject_plunge_depth))
+    ((ConfigOptionInt,                 inject_bed_temperature))
     ((ConfigOptionString,              inject_object_name))
 )
 

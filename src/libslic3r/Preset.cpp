@@ -1273,6 +1273,7 @@ static std::vector<std::string> s_Preset_print_options{
     "inject_tool",
     "inject_fill_ratio",
     "inject_plunge_depth",
+    "inject_bed_temperature",
     "inject_object_name",
     "inject_body",
 };

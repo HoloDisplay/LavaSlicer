@@ -3372,6 +3372,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     if (print.config().inject_mode.value) {
         const int    inject_tool_id  = print.config().inject_tool.value;
         const int    inject_temp     = print.config().inject_temperature.value;
+        const int    inject_bed_temp = print.config().inject_bed_temperature.value;
         const double fill_ratio      = print.config().inject_fill_ratio.value / 100.0;
         const double plunge_depth    = print.config().inject_plunge_depth.value;
         const double filament_dia    = print.config().filament_diameter.get_at(inject_tool_id);
@@ -3511,6 +3512,12 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
             // Relative E mode
             file.write("M83 ; relative E\n");
+
+            // Set bed temperature if overridden
+            if (inject_bed_temp > 0) {
+                file.write_format("M140 S%d               ; set injection bed temp\n", inject_bed_temp);
+                file.write_format("M190 S%d               ; wait for injection bed temp\n", inject_bed_temp);
+            }
 
             // Tool change if needed
             if (inject_tool_id != mold_tool_id) {

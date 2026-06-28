@@ -4691,6 +4691,16 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloat(2.0));
 
+    def = this->add("inject_bed_temperature", coInt);
+    def->label = L("Injection bed temperature");
+    def->category = L("Others");
+    def->tooltip = L("Bed temperature during injection. Set to 0 to keep the current bed temperature.");
+    def->sidetext = L("\u00B0C");
+    def->min = 0;
+    def->max = 200;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionInt(0));
+
     def = this->add("inject_object_name", coString);
     def->label = L("Injection body name");
     def->category = L("Others");
