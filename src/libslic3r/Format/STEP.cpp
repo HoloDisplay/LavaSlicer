@@ -745,4 +745,38 @@ unsigned int Step::get_triangle_num_tbb(double linear_defletion, double angle_de
     return tri_num;
 }
 
+// Simple CLI-friendly STEP loader: meshes the file into `model`, splitting the
+// assembly into separate named objects (so Benchy / mold halves stay distinct).
+// Returns true on success. Forward-declared (without OCCT headers) in Model.cpp.
+bool load_step_simple(const char* path, Model* model)
+{
+    std::string step_path(path);
+    Step step(step_path);
+    if (step.load() != Step::Step_Status::LOAD_SUCCESS)
+        return false;
+    bool is_cancel = false;
+    if (step.mesh(model, is_cancel, /*isSplitCompound*/ true)
+            != Step::Step_Status::MESH_SUCCESS)
+        return false;
+
+    // Step::mesh imports the assembly as ONE object holding one *named volume*
+    // per solid (vertices already in world coordinates). Promote each named
+    // volume into its own ModelObject so the parts stay separable and named for
+    // per-object slicing / measurement (e.g. mold halves vs the molten part).
+    std::vector<ModelObject*> originals(model->objects.begin(), model->objects.end());
+    std::vector<ModelObject*> to_remove;
+    for (ModelObject* obj : originals) {
+        if (obj->volumes.size() <= 1)
+            continue;
+        for (const ModelVolume* vol : obj->volumes) {
+            const std::string nm = vol->name.empty() ? obj->name : vol->name;
+            model->add_object(nm.c_str(), path, vol->mesh());
+        }
+        to_remove.push_back(obj);
+    }
+    for (ModelObject* obj : to_remove)
+        model->delete_object(obj);
+    return true;
+}
+
 }; // namespace Slic3r

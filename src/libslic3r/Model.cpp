@@ -236,6 +236,10 @@ _finished:
     return model;
 }
 
+// Defined in Format/STEP.cpp; forward-declared here to avoid pulling OCCT
+// headers into Model.cpp. Meshes a STEP assembly into split named objects.
+extern bool load_step_simple(const char* path, Model* model);
+
 // BBS: add part plate related logic
 // BBS: backup & restore
 // Loading model from a file, it may be a simple geometry file as STL or OBJ, however it may be a project file as well.
@@ -313,6 +317,8 @@ Model Model::read_from_file(const std::string&                                  
         result = load_svg(input_file.c_str(), &model, message);
     //BBS: remove the old .amf.xml files
     //else if (boost::algorithm::iends_with(input_file, ".amf") || boost::algorithm::iends_with(input_file, ".amf.xml"))
+    else if (boost::algorithm::iends_with(input_file, ".step") || boost::algorithm::iends_with(input_file, ".stp"))
+        result = load_step_simple(input_file.c_str(), &model);
     else if (boost::algorithm::iends_with(input_file, ".drc"))
         result = load_drc(input_file.c_str(), &model);
     else if (boost::algorithm::iends_with(input_file, ".amf"))
