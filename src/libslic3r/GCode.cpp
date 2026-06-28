@@ -3525,6 +3525,9 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 file.write_format("G4 S%d                 ; heat soak %d seconds\n", heat_soak_secs, heat_soak_secs);
             }
 
+            // Lift Z high to clear part before any tool change movement
+            file.write_format("G1 Z%.3f F600          ; lift clear of part for tool change\n", top_z + 40.0);
+
             // Tool change if needed — use simple T command, firmware handles park/pick
             if (inject_tool_id != mold_tool_id) {
                 file.write_format("; --- tool change: mold T%d -> inject T%d ---\n",
@@ -3540,7 +3543,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             }
 
             // Travel to injection point
-            file.write("G1 Z20 F600                ; lift clear\n");
             file.write_format("G1 X%.3f Y%.3f F9000   ; travel to injection point\n",
                               inject_x, inject_y);
             file.write_format("G1 Z%.3f F600          ; descend to cavity rim\n", rim_z);
