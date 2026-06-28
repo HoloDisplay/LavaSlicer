@@ -3070,6 +3070,42 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     // Write the custom start G-code
     file.writeln(machine_start_gcode);
 
+    // LavaSlicer: if injection mode is on and the inject tool differs from the
+    // initial tool, register the inject tool with the firmware at startup.
+    // This ensures the firmware recognizes it as a multi-tool job.
+    if (print.config().inject_mode.value) {
+        const int inject_tool_id = print.config().inject_tool.value;
+        if (inject_tool_id != (int)initial_extruder_id) {
+            const int inject_temp = print.config().inject_temperature.value;
+            // Prusa XL purge lane positions per tool
+            const int lanes[] = {30, 150, 210, 330, 330};
+            const int signs[] = {1, -1, 1, -1, -1};
+            int lane = (inject_tool_id < 5) ? lanes[inject_tool_id] : 30;
+            int sign = (inject_tool_id < 5) ? signs[inject_tool_id] : 1;
+            int x_to = lane + sign * 10;
+            int x_pg = lane + sign * 40;
+            double y = (inject_tool_id < 4) ? -7.0 : -4.5;
+
+            file.write_format("; --- LavaSlicer: register inject tool T%d ---\n", inject_tool_id);
+            file.write("G1 F24000\n");
+            file.write("P0 S1 L2 D0 ; park current tool\n");
+            file.write_format("M109 T%d S%d ; heat inject tool\n", inject_tool_id, inject_temp);
+            file.write_format("T%d S1 L0 D0 ; pick inject tool\n", inject_tool_id);
+            file.write("G92 E0\n");
+            file.write_format("G0 X%d Y%.1f Z10 F24000 ; to purge lane\n", lane, y);
+            file.write_format("G0 E10 X%d Z0.2 F500 ; purge\n", x_to);
+            file.write_format("G0 X%d E9 F800 ; purge + wipe\n", x_pg);
+            file.write_format("G0 X%d Z0.05 F8000 ; wipe\n", x_pg + sign * 3);
+            file.write_format("G0 X%d Z0.2 F8000 ; wipe away\n", x_pg + sign * 6);
+            file.write("G1 E-1.2 F2400 ; retract\n");
+            file.write("G92 E0\n");
+            file.write_format("M104 S0 T%d ; idle inject tool\n", inject_tool_id);
+            file.write("P0 S1 L2 D0 ; park inject tool\n");
+            file.write_format("T%d S1 L0 D0 ; pick mold tool back\n", (int)initial_extruder_id);
+            file.write("; --- end inject tool init ---\n");
+        }
+    }
+
     //BBS: gcode writer doesn't know where the real position of extruder is after inserting custom gcode
     m_writer.set_current_position_clear(false);
     m_start_gcode_filament = GCodeProcessor::get_gcode_last_filament(machine_start_gcode);
