@@ -2,12 +2,15 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include "libslic3r/Utils.hpp"
+
 #include "STEP.hpp"
+
+#ifdef SLIC3R_ENABLE_FORMAT_STEP
 #include "occt_wrapper/OCCTWrapper.hpp"
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/TriangleMesh.hpp"
-#include "libslic3r/Utils.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/dll/runtime_symbol_info.hpp>
@@ -22,9 +25,12 @@
     #include<occt_wrapper/OCCTWrapper.hpp>
     #include <dlfcn.h>
 #endif
+#endif
 
 
 namespace Slic3r {
+
+#ifdef SLIC3R_ENABLE_FORMAT_STEP
 
 #if __APPLE__
 extern "C" bool load_step_internal(const char *path, OCCTResult* res, std::optional<std::pair<double, double>> deflections /*= std::nullopt*/);
@@ -124,5 +130,14 @@ bool load_step(const char *path, Model *model /*BBS:, ImportStepProgressFn proFn
 
     return true;
 }
+
+#else
+
+bool load_step(const char*, Model*, std::optional<std::pair<double, double>>)
+{
+    throw Slic3r::RuntimeError("STEP file support is disabled in this PrusaSlicer build.");
+}
+
+#endif
 
 }; // namespace Slic3r

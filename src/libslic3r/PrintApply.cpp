@@ -17,6 +17,8 @@
 #include <cassert>
 #include <cstddef>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "Model.hpp"
 #include "Print.hpp"
 #include "admesh/stl.h"
@@ -185,6 +187,74 @@ static std::vector<PrintObjectTrafoAndInstances> print_objects_from_model_object
             const_cast<PrintObjectTrafoAndInstances&>(*it).instances.emplace_back(PrintInstance{ nullptr, model_instance, shift });
         }
     return std::vector<PrintObjectTrafoAndInstances>(trafos.begin(), trafos.end());
+}
+
+static bool injection_pour_name_matches(const std::string &name, const std::string &token)
+{
+    return !token.empty() && boost::algorithm::icontains(name, token);
+}
+
+static bool injection_pour_helpers_enabled(const PrintConfig &config)
+{
+    return config.injection_pour_enabled.value &&
+        config.injection_pour_auto_from_model.value;
+}
+
+static bool is_injection_pour_part_helper_object(const ModelObject &model_object, const PrintConfig &config)
+{
+    return injection_pour_helpers_enabled(config) &&
+        injection_pour_name_matches(model_object.name, config.injection_pour_part_name.value);
+}
+
+static bool is_injection_pour_part_helper_volume(const ModelVolume &model_volume, const PrintConfig &config)
+{
+    return injection_pour_helpers_enabled(config) &&
+        injection_pour_name_matches(model_volume.name, config.injection_pour_part_name.value);
+}
+
+static bool is_injection_pour_nonprinting_port_volume(const ModelVolume &model_volume, const PrintConfig &config)
+{
+    return injection_pour_helpers_enabled(config) &&
+        !model_volume.is_negative_volume() &&
+        injection_pour_name_matches(model_volume.name, config.injection_pour_port_name.value);
+}
+
+static bool is_injection_pour_nonprinting_helper_volume(const ModelVolume &model_volume, const PrintConfig &config)
+{
+    return is_injection_pour_part_helper_volume(model_volume, config) ||
+        is_injection_pour_nonprinting_port_volume(model_volume, config);
+}
+
+static bool is_injection_pour_nonprinting_object(const ModelObject &model_object, const PrintConfig &config)
+{
+    if (!injection_pour_helpers_enabled(config))
+        return false;
+    if (is_injection_pour_part_helper_object(model_object, config))
+        return true;
+
+    bool has_model_part = false;
+    for (const ModelVolume *volume : model_object.volumes)
+        if (volume->is_model_part()) {
+            has_model_part = true;
+            if (!is_injection_pour_nonprinting_helper_volume(*volume, config))
+                return false;
+        }
+
+    return has_model_part;
+}
+
+static ModelVolumePtrs injection_pour_print_model_volumes(const ModelObject &model_object, const PrintConfig &config)
+{
+    ModelVolumePtrs volumes;
+    if (is_injection_pour_part_helper_object(model_object, config))
+        return volumes;
+
+    volumes.reserve(model_object.volumes.size());
+    for (ModelVolume *volume : model_object.volumes)
+        if (!is_injection_pour_nonprinting_helper_volume(*volume, config))
+            volumes.emplace_back(volume);
+
+    return volumes;
 }
 
 // Compare just the layer ranges and their layer heights, not the associated configs.
@@ -1517,7 +1587,9 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         // Walk over all new model objects and check, whether there are matching PrintObjects.
         for (ModelObject *model_object : m_model.objects) {
             ModelObjectStatus &model_object_status = const_cast<ModelObjectStatus&>(model_object_status_db.reuse(*model_object));
-            model_object_status.print_instances    = print_objects_from_model_object(*model_object, this->shrinkage_compensation());
+            model_object_status.print_instances    = is_injection_pour_nonprinting_object(*model_object, m_config) ?
+                std::vector<PrintObjectTrafoAndInstances>() :
+                print_objects_from_model_object(*model_object, this->shrinkage_compensation());
             std::vector<const PrintObjectStatus*> old;
             old.reserve(print_object_status_db.count(*model_object));
             for (const PrintObjectStatus &print_object_status : print_object_status_db.get_range(*model_object))
@@ -1607,8 +1679,9 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             model_object_status.print_object_regions = print_object_regions;
             print_object_regions->ref_cnt_inc();
         }
+        ModelVolumePtrs print_model_volumes = injection_pour_print_model_volumes(*print_object.model_object(), m_config);
         std::vector<unsigned int> painting_extruders;
-        if (const auto &volumes = print_object.model_object()->volumes; num_physical_extruders > 1 && print_object.model_object()->is_mm_painted()) {
+        if (const auto &volumes = print_model_volumes; num_physical_extruders > 1 && print_object.model_object()->is_mm_painted()) {
             std::array<bool, TRIANGLE_STATE_TYPE_COUNT> used_facet_states{};
             for (const ModelVolume *volume : volumes) {
                 if (volume->is_mm_painted()) {
@@ -1656,7 +1729,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
                 print_regions_reshuffled = true;
             } else if (print_object_regions &&
                 verify_update_print_object_regions(
-                    print_object.model_object()->volumes,
+                    print_model_volumes,
                     m_default_region_config,
                     num_physical_extruders,
                     virtual_extruders,
@@ -1680,7 +1753,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             // and create the regions from scratch.
             print_object_regions = generate_print_object_regions(
                 print_object_regions,
-                print_object.model_object()->volumes,
+                print_model_volumes,
                 LayerRanges(print_object.model_object()->layer_config_ranges),
                 m_default_region_config,
                 model_object_status.print_instances.front().trafo,

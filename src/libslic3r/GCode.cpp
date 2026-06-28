@@ -47,6 +47,7 @@
 #include "LocalesUtils.hpp"
 #include "format.hpp"
 #include "Time.hpp"
+#include "Model.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -1425,6 +1426,8 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
             // Purge the extruder, pull out the active filament.
             file.write(m_wipe_tower->finalize(*this));
     }
+
+    file.write(this->injection_pour_gcode(print));
 
     // Write end commands to file.
     file.write(this->retract_and_wipe());
@@ -2996,8 +2999,15 @@ void GCodeGenerator::encode_full_config(const Print& print, std::vector<std::pai
 
 void GCodeGenerator::set_extruders(const std::vector<unsigned int> &extruder_ids)
 {
-    m_writer.set_extruders(extruder_ids);
-    m_wipe.init(this->config(), extruder_ids);
+    std::vector<unsigned int> ids = extruder_ids;
+    if (m_config.injection_pour_enabled.value) {
+        const int pour_extruder = m_config.injection_pour_extruder.value - 1;
+        if (pour_extruder >= 0 && pour_extruder < int(m_config.nozzle_diameter.values.size()) &&
+            std::find(ids.begin(), ids.end(), unsigned(pour_extruder)) == ids.end())
+            ids.emplace_back(unsigned(pour_extruder));
+    }
+    m_writer.set_extruders(ids);
+    m_wipe.init(this->config(), ids);
 }
 
 void GCodeGenerator::set_origin(const Vec2d &pointf)
@@ -4045,6 +4055,251 @@ std::string GCodeGenerator::set_extruder(unsigned int extruder_id, double print_
     // The position is now known after the tool change.
     this->last_position = std::nullopt;
 
+    return gcode;
+}
+
+namespace {
+
+struct InjectionPourModelTarget
+{
+    bool        has_part { false };
+    bool        has_port { false };
+    double      volume_mm3 { 0. };
+    BoundingBoxf3 part_bbox;
+    Vec3d       port_point { Vec3d::Zero() };
+    std::string part_source;
+    std::string port_source;
+};
+
+static bool injection_pour_name_matches(const std::string &name, const std::string &token)
+{
+    return !token.empty() && boost::algorithm::icontains(name, token);
+}
+
+static TriangleMesh injection_pour_transformed_volume_mesh(const ModelObject &object, const ModelVolume &volume)
+{
+    TriangleMesh volume_mesh(volume.mesh());
+    volume_mesh.transform(volume.get_matrix());
+
+    TriangleMesh mesh;
+    if (object.instances.empty()) {
+        mesh.merge(volume_mesh);
+    } else {
+        for (const ModelInstance *instance : object.instances) {
+            TriangleMesh instance_mesh(volume_mesh);
+            instance->transform_mesh(&instance_mesh);
+            mesh.merge(instance_mesh);
+        }
+    }
+    return mesh;
+}
+
+static std::string injection_pour_volume_source(const ModelObject &object, const ModelVolume &volume)
+{
+    if (volume.name.empty())
+        return object.name;
+    if (object.name.empty())
+        return volume.name;
+    return object.name + "/" + volume.name;
+}
+
+static void injection_pour_accumulate_part(InjectionPourModelTarget &target, TriangleMesh &&mesh, const std::string &source)
+{
+    if (mesh.empty())
+        return;
+
+    const double volume = std::abs(double(mesh.volume()));
+    if (volume <= 0.)
+        return;
+
+    target.has_part = true;
+    target.volume_mm3 += volume;
+    target.part_bbox.merge(mesh.bounding_box());
+    if (!target.part_source.empty())
+        target.part_source += ", ";
+    target.part_source += source;
+}
+
+static void injection_pour_set_port(InjectionPourModelTarget &target, TriangleMesh &&mesh, const std::string &source)
+{
+    if (target.has_port || mesh.empty())
+        return;
+
+    const BoundingBoxf3 bbox = mesh.bounding_box();
+    if (!bbox.defined)
+        return;
+
+    target.has_port = true;
+    target.port_point = bbox.center();
+    target.port_source = source;
+}
+
+static InjectionPourModelTarget injection_pour_model_target(const Print &print, const PrintConfig &config)
+{
+    InjectionPourModelTarget target;
+    const std::string &part_token = config.injection_pour_part_name.value;
+    const std::string &port_token = config.injection_pour_port_name.value;
+
+    for (const ModelObject *object : print.model().objects) {
+        const bool object_is_part = injection_pour_name_matches(object->name, part_token);
+        const bool object_is_port = injection_pour_name_matches(object->name, port_token);
+
+        for (const ModelVolume *volume : object->volumes) {
+            const bool volume_is_part = object_is_part || injection_pour_name_matches(volume->name, part_token);
+            const bool volume_is_port = object_is_port || injection_pour_name_matches(volume->name, port_token);
+            if (!volume_is_part && !volume_is_port)
+                continue;
+            if (volume_is_part && !volume->is_model_part())
+                continue;
+            if (volume_is_port && !volume->is_model_part() && !volume->is_negative_volume())
+                continue;
+
+            TriangleMesh mesh = injection_pour_transformed_volume_mesh(*object, *volume);
+            const std::string source = injection_pour_volume_source(*object, *volume);
+            if (volume_is_part)
+                injection_pour_accumulate_part(target, TriangleMesh(mesh), source);
+            if (volume_is_port)
+                injection_pour_set_port(target, std::move(mesh), source);
+        }
+    }
+
+    if (target.has_part)
+        target.volume_mm3 *= config.injection_pour_volume_multiplier.value;
+
+    return target;
+}
+
+} // namespace
+
+std::string GCodeGenerator::injection_pour_gcode(const Print &print)
+{
+    if (!m_config.injection_pour_enabled.value)
+        return {};
+
+    const int extruder_id_1based = m_config.injection_pour_extruder.value;
+    if (extruder_id_1based <= 0 || extruder_id_1based > int(m_config.nozzle_diameter.values.size()))
+        return {};
+
+    const unsigned int extruder_id = static_cast<unsigned int>(extruder_id_1based - 1);
+    double volume_mm3 = m_config.injection_pour_volume.value;
+    const double flow_mm3s  = m_config.injection_pour_flow.value;
+    double pour_x = m_config.injection_pour_x.value;
+    double pour_y = m_config.injection_pour_y.value;
+    double pour_z = m_config.injection_pour_z.value > 0. ?
+        m_config.injection_pour_z.value + m_config.z_offset.value :
+        double(m_max_layer_z);
+    InjectionPourModelTarget model_target;
+    if (m_config.injection_pour_auto_from_model.value) {
+        model_target = injection_pour_model_target(print, m_config);
+        if (model_target.has_part)
+            volume_mm3 = model_target.volume_mm3;
+        if (model_target.has_port) {
+            pour_x = model_target.port_point.x();
+            pour_y = model_target.port_point.y();
+            pour_z = model_target.port_point.z() + m_config.z_offset.value;
+        } else if (model_target.part_bbox.defined) {
+            const Vec3d center = model_target.part_bbox.center();
+            pour_x = center.x();
+            pour_y = center.y();
+            pour_z = model_target.part_bbox.max.z() + m_config.z_offset.value;
+        }
+    }
+    double pour_start_z = m_config.injection_pour_start_z.value > 0. ?
+        m_config.injection_pour_start_z.value + m_config.z_offset.value :
+        pour_z;
+    double pour_end_z = m_config.injection_pour_end_z.value > 0. ?
+        m_config.injection_pour_end_z.value + m_config.z_offset.value :
+        pour_z;
+    if (pour_start_z > pour_end_z)
+        return {};
+
+    if (volume_mm3 <= 0. || flow_mm3s <= 0.)
+        return {};
+
+    std::string gcode;
+    {
+        char buf[128];
+        sprintf(buf, "\n;LAYER_CHANGE\n;Z:%.3f\n;HEIGHT:0\n", pour_start_z);
+        gcode += buf;
+    }
+    gcode += ";TYPE:Injection pour\n";
+    // Keep a viewer-visible extrusion role for the marker loop below. The
+    // injection comments still identify the block for post-processing.
+    gcode += ";TYPE:External perimeter\n";
+    gcode += "; injection pour start\n";
+    if (m_config.injection_pour_auto_from_model.value) {
+        gcode += "; injection pour mode: model helpers\n";
+        gcode += "; injection pour part source: " + (model_target.part_source.empty() ? std::string("(not found)") : model_target.part_source) + "\n";
+        gcode += "; injection pour port source: " + (model_target.port_source.empty() ? std::string("(part top-center fallback)") : model_target.port_source) + "\n";
+    }
+    {
+        char buf[128];
+        sprintf(buf, "; injection pour z range: %.3f -> %.3f\n", pour_start_z, pour_end_z);
+        gcode += buf;
+    }
+    gcode += this->retract_and_wipe(false);
+    gcode += this->set_extruder(extruder_id, pour_start_z);
+
+    const int pour_temperature = m_config.injection_pour_temperature.value > 0 ?
+        m_config.injection_pour_temperature.value :
+        m_config.temperature.get_at(extruder_id);
+    if (pour_temperature > 0)
+        gcode += m_writer.set_temperature(pour_temperature, true, int(extruder_id));
+
+    const Vec2d pour_xy{pour_x, pour_y};
+    const double pour_clearance_z = std::max<double>(m_writer.get_position().z(), std::max(pour_z, pour_end_z));
+    gcode += m_writer.travel_to_z_force(pour_clearance_z, "move to injection pour height");
+    gcode += m_writer.travel_to_xy_force(pour_xy, "move to injection pour point");
+    gcode += m_writer.travel_to_z_force(pour_start_z, "move to injection pour start z");
+    gcode += this->unretract();
+
+    const double e_amount = volume_mm3 * m_writer.extruder()->e_per_mm3();
+    const double e_feedrate = flow_mm3s * m_writer.extruder()->e_per_mm3() * 60.;
+    // Extruding in place works on the printer, but G-code viewers have no
+    // segment to draw. Use a tiny marker loop so the pour is visible, then
+    // extrude the remaining commanded volume at the center. Keep stationary
+    // E moves short so firmware extrusion-length guards do not reject them.
+    constexpr double pi = 3.14159265358979323846;
+    constexpr unsigned int segments = 16;
+    constexpr double max_stationary_e_chunk = 5.;
+    const double radius = std::max(1.0, std::min(2.0, m_config.nozzle_diameter.get_at(extruder_id) * 2.));
+    const double marker_e_amount = std::min(e_amount, std::max(0.1, m_config.nozzle_diameter.get_at(extruder_id) * 0.6));
+    gcode += m_writer.travel_to_xy_force(Vec2d{pour_x + radius, pour_y}, "move to injection pour puddle start");
+    gcode += m_writer.set_speed(e_feedrate, "set injection pour marker flow");
+    for (unsigned int i = 1; i <= segments; ++i) {
+        const double angle = 2. * pi * double(i) / double(segments);
+        const Vec3d point{pour_x + radius * std::cos(angle), pour_y + radius * std::sin(angle), pour_start_z};
+        gcode += m_writer.extrude_to_xyz(point, marker_e_amount / double(segments), "injection pour marker");
+    }
+    gcode += m_writer.travel_to_xy_force(pour_xy, "return to injection pour center");
+    if (e_amount > marker_e_amount) {
+        gcode += m_writer.set_speed(e_feedrate, "set injection pour bulk flow");
+        double remaining_e = e_amount - marker_e_amount;
+        const double bulk_e_amount = remaining_e;
+        double emitted_bulk_e = 0.;
+        unsigned int chunk_id = 1;
+        while (remaining_e > 0.) {
+            const double chunk_e = std::min(remaining_e, max_stationary_e_chunk);
+            emitted_bulk_e += chunk_e;
+            const double progress = bulk_e_amount > 0. ? emitted_bulk_e / bulk_e_amount : 1.;
+            const double chunk_z = pour_start_z + (pour_end_z - pour_start_z) * progress;
+            const std::string comment = std::abs(pour_end_z - pour_start_z) > EPSILON ?
+                "rising injection pour bulk chunk " + std::to_string(chunk_id) :
+                "stationary injection pour bulk chunk " + std::to_string(chunk_id);
+            gcode += m_writer.extrude_to_xyz(Vec3d{pour_x, pour_y, chunk_z}, chunk_e, comment);
+            ++ chunk_id;
+            remaining_e -= chunk_e;
+        }
+    }
+
+    if (m_config.injection_pour_dwell.value > 0.) {
+        char buf[64];
+        sprintf(buf, "G4 P%d ; dwell after injection pour\n", int(m_config.injection_pour_dwell.value * 1000. + 0.5));
+        gcode += buf;
+    }
+
+    this->last_position = this->gcode_to_point(pour_xy);
+    gcode += "; injection pour end\n";
     return gcode;
 }
 

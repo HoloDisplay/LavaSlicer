@@ -364,6 +364,7 @@ private:
     std::string     retract_and_wipe(bool toolchange = false, bool reset_e = true);
     std::string     unretract() { return m_writer.unretract(); }
     std::string     set_extruder(unsigned int extruder_id, double print_z);
+    std::string     injection_pour_gcode(const Print &print);
     bool line_distancer_is_required(const std::vector<unsigned int>& extruder_ids);
 
     Seams::Placer                       m_seam_placer;

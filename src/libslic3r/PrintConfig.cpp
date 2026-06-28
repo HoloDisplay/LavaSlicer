@@ -36,6 +36,7 @@
 #include <string_view>
 
 #include "Config.hpp"
+#include "BoundingBox.hpp"
 #include "I18N.hpp"
 #include "format.hpp"
 #include "libslic3r/GCode/Thumbnails.hpp"
@@ -597,8 +598,132 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloatOrPercent(100., true));
 
-    // Maximum extruder temperature, bumped to 1500 to support printing of glass.
-    const int max_temp = 1500;
+    def = this->add("injection_pour_enabled", coBool);
+    def->label = L("Enable injection pour");
+    def->category = L("Extruders");
+    def->tooltip = L("Experimental: after normal printing finishes, move to a point and pour molten filament from a selected extruder.");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("injection_pour_auto_from_model", coBool);
+    def->label = L("Use model injection helpers");
+    def->category = L("Extruders");
+    def->tooltip = L("Experimental: derive pour volume from a separate injected-part object, and optionally derive the pour point from a separate injection-port object. Matching helper objects are skipped during normal slicing.");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("injection_pour_part_name", coString);
+    def->label = L("Injected part name");
+    def->category = L("Extruders");
+    def->tooltip = L("Object name fragment used to find the solid that should be injection-filled. Its mesh volume becomes the pour volume.");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionString("injection_part"));
+
+    def = this->add("injection_pour_port_name", coString);
+    def->label = L("Optional injection port name");
+    def->category = L("Extruders");
+    def->tooltip = L("Optional object name fragment used to find a small marker at the desired pour point. If omitted or not found, the injected part's top-center is used.");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionString("injection_port"));
+
+    def = this->add("injection_pour_volume_multiplier", coFloat);
+    def->label = L("Pour volume multiplier");
+    def->category = L("Extruders");
+    def->tooltip = L("Multiplier applied to the model-derived injected part volume. Use values above 1.0 for extra fill or packing.");
+    def->sidetext = L("×");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(1.0));
+
+    def = this->add("injection_pour_extruder", coInt);
+    def->label = L("Pour extruder");
+    def->category = L("Extruders");
+    def->tooltip = L("Extruder used for the experimental top pour. Extruder numbers are 1-based.");
+    def->min = 1;
+    def->mode = comExpert;
+    def->set_enum_labels(ConfigOptionDef::GUIType::i_enum_open, { "1", "2", "3", "4", "5" });
+    def->set_default_value(new ConfigOptionInt(2));
+
+    def = this->add("injection_pour_x", coFloat);
+    def->label = L("Pour X");
+    def->category = L("Extruders");
+    def->tooltip = L("Absolute bed X coordinate for the experimental top pour.");
+    def->sidetext = L("mm");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_y", coFloat);
+    def->label = L("Pour Y");
+    def->category = L("Extruders");
+    def->tooltip = L("Absolute bed Y coordinate for the experimental top pour.");
+    def->sidetext = L("mm");
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_z", coFloat);
+    def->label = L("Pour Z");
+    def->category = L("Extruders");
+    def->tooltip = L("Absolute Z coordinate for the experimental top pour. Set to 0 to pour at the final printed height. If model injection helpers are enabled, the injected part top-center is used unless a port helper overrides it.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_start_z", coFloat);
+    def->label = L("Pour start Z");
+    def->category = L("Extruders");
+    def->tooltip = L("Optional lower Z coordinate where the bulk injection starts. Set to 0 to start at the normal pour Z.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_end_z", coFloat);
+    def->label = L("Pour end Z");
+    def->category = L("Extruders");
+    def->tooltip = L("Optional upper Z coordinate where the rising bulk injection ends. Set to 0 to end at the normal pour Z.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_volume", coFloat);
+    def->label = L("Pour volume");
+    def->category = L("Extruders");
+    def->tooltip = L("Plastic volume to extrude during the experimental top pour.");
+    def->sidetext = L("mm³");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("injection_pour_flow", coFloat);
+    def->label = L("Pour flow");
+    def->category = L("Extruders");
+    def->tooltip = L("Volumetric flow rate for the experimental top pour.");
+    def->sidetext = L("mm³/s");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(2.));
+
+    def = this->add("injection_pour_temperature", coInt);
+    def->label = L("Pour temperature");
+    def->category = L("Extruders");
+    def->tooltip = L("Nozzle temperature for the pour extruder. Set to 0 to use the selected filament's normal print temperature.");
+    def->sidetext = L("°C");
+    def->min = 0;
+    def->max = max_temp;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionInt(0));
+
+    def = this->add("injection_pour_dwell", coFloat);
+    def->label = L("Dwell after pour");
+    def->category = L("Extruders");
+    def->tooltip = L("Optional wait time after the experimental top pour.");
+    def->sidetext = L("s");
+    def->min = 0;
+    def->mode = comExpert;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
     def = this->add("avoid_crossing_curled_overhangs", coBool);
     def->label = L("Avoid crossing curled overhangs (Experimental)");
     // TRN PrintSettings: "Avoid crossing curled overhangs (Experimental)"
@@ -5808,6 +5933,26 @@ std::string validate(const FullPrintConfig &cfg)
         for (unsigned char wipe : cfg.wipe.values)
              if (wipe)
                 return "--use-firmware-retraction is not compatible with --wipe";
+
+    if (cfg.injection_pour_enabled.value) {
+        const int extruder_id = cfg.injection_pour_extruder.value;
+        if (extruder_id <= 0 || extruder_id > int(cfg.nozzle_diameter.values.size()))
+            return "Invalid value for --injection-pour-extruder";
+        if (!cfg.injection_pour_auto_from_model.value && cfg.injection_pour_volume.value <= 0)
+            return "Invalid value for --injection-pour-volume";
+        if (cfg.injection_pour_volume_multiplier.value <= 0)
+            return "Invalid value for --injection-pour-volume-multiplier";
+        if (cfg.injection_pour_flow.value <= 0)
+            return "Invalid value for --injection-pour-flow";
+        if (cfg.injection_pour_start_z.value > 0 && cfg.injection_pour_end_z.value > 0 &&
+            cfg.injection_pour_start_z.value > cfg.injection_pour_end_z.value)
+            return "--injection-pour-start-z must be less than or equal to --injection-pour-end-z";
+        if (!cfg.injection_pour_auto_from_model.value) {
+            BoundingBoxf bed_bbox(cfg.bed_shape.values);
+            if (bed_bbox.defined && !bed_bbox.contains(Vec2d(cfg.injection_pour_x.value, cfg.injection_pour_y.value)))
+                return "--injection-pour-x/--injection-pour-y must be inside the bed shape";
+        }
+    }
 
     // --gcode-flavor
     if (! print_config_def.get("gcode_flavor")->has_enum_value(cfg.gcode_flavor.serialize()))

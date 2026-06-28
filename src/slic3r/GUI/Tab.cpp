@@ -1671,6 +1671,23 @@ void TabPrint::build()
         optgroup->append_single_option_line("wipe_tower_no_sparse_layers");
         optgroup->append_single_option_line("single_extruder_multi_material_priming");
 
+        optgroup = page->new_optgroup(L("Injection pour (experimental)"));
+        optgroup->append_single_option_line("injection_pour_enabled");
+        optgroup->append_single_option_line("injection_pour_auto_from_model");
+        optgroup->append_single_option_line("injection_pour_part_name");
+        optgroup->append_single_option_line("injection_pour_port_name");
+        optgroup->append_single_option_line("injection_pour_volume_multiplier");
+        optgroup->append_single_option_line("injection_pour_extruder");
+        optgroup->append_single_option_line("injection_pour_x");
+        optgroup->append_single_option_line("injection_pour_y");
+        optgroup->append_single_option_line("injection_pour_z");
+        optgroup->append_single_option_line("injection_pour_start_z");
+        optgroup->append_single_option_line("injection_pour_end_z");
+        optgroup->append_single_option_line("injection_pour_volume");
+        optgroup->append_single_option_line("injection_pour_flow");
+        optgroup->append_single_option_line("injection_pour_temperature");
+        optgroup->append_single_option_line("injection_pour_dwell");
+
         optgroup = page->new_optgroup(L("Advanced"));
         optgroup->append_single_option_line("toolchange_ordering");
 

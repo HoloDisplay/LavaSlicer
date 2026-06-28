@@ -512,6 +512,9 @@ static std::vector<std::string> s_Preset_print_options {
     "top_one_perimeter_type", "only_one_perimeter_first_layer",
     "automatic_extrusion_widths", "automatic_infill_combination", "automatic_infill_combination_max_layer_height",
     "bed_temperature_extruder", "interlocking_beam", "interlocking_orientation", "interlocking_beam_layer_count", "interlocking_depth", "interlocking_boundary_avoidance", "interlocking_beam_width",
+    "injection_pour_enabled", "injection_pour_auto_from_model", "injection_pour_part_name", "injection_pour_port_name",
+    "injection_pour_volume_multiplier", "injection_pour_extruder", "injection_pour_x", "injection_pour_y", "injection_pour_z",
+    "injection_pour_start_z", "injection_pour_end_z", "injection_pour_volume", "injection_pour_flow", "injection_pour_temperature", "injection_pour_dwell",
     "travel_short_distance_acceleration", "toolchange_ordering"
 };
 

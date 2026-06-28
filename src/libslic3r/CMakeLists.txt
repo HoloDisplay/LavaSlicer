@@ -556,6 +556,10 @@ endif ()
 
 add_library(libslic3r STATIC ${SLIC3R_SOURCES})
 
+if (SLIC3R_ENABLE_FORMAT_STEP)
+    target_compile_definitions(libslic3r PUBLIC SLIC3R_ENABLE_FORMAT_STEP)
+endif()
+
 if (WIN32)
     target_compile_definitions(libslic3r PUBLIC NOMINMAX)
 endif()
@@ -660,7 +664,7 @@ target_link_libraries(libslic3r PUBLIC
     prusa_fdm_mixer
 )
 
-if (APPLE)
+if (APPLE AND SLIC3R_ENABLE_FORMAT_STEP)
     # TODO: we need to fix notarization with the separate shared library
     target_link_libraries(libslic3r PUBLIC OCCTWrapper)
 endif ()
