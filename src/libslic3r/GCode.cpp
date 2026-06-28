@@ -3408,11 +3408,10 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             }
 
             // Compute volume and find injection point from the injection body mesh.
-            // The injection point is the center of the circular opening on the
-            // mold's top layer — this corresponds to the XY center of the injection
-            // body's cross-section at that Z. We use the injection body's bounding
-            // box XY center as the injection point, since the circular port is
-            // concentric with the body.
+            // The injection body's topmost layer (highest Z) will be circular —
+            // the center of that circle is the injection point.
+            // We find all mesh vertices near the max Z of the injection body
+            // and compute their XY centroid.
             double total_volume_mm3 = 0.0;
             double inject_x = 0.0, inject_y = 0.0;
             bool   found_inject_point = false;
@@ -3434,16 +3433,37 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 // Compute volume (scale-aware)
                 total_volume_mm3 += std::abs(its_volume(its)) * std::abs(vol_trafo.matrix().block<3,3>(0,0).determinant());
 
-                // Get the bounding box of this volume in bed coordinates.
-                // The XY center of the bounding box = center of the circular
-                // opening on the mold's top layer.
                 if (!obj->instances().empty()) {
                     const PrintInstance &inst = obj->instances().front();
                     Transform3d full_trafo = inst.model_instance->get_matrix() * vol_trafo;
-                    BoundingBoxf3 vol_bbox = mesh.transformed_bounding_box(full_trafo);
-                    inject_x = vol_bbox.center().x();
-                    inject_y = vol_bbox.center().y();
-                    found_inject_point = true;
+
+                    // Transform all vertices to bed space and find the max Z
+                    std::vector<Vec3d> bed_verts;
+                    bed_verts.reserve(its.vertices.size());
+                    double max_z = -1e30;
+                    for (const Vec3f &v : its.vertices) {
+                        Vec3d bv = full_trafo * v.cast<double>();
+                        bed_verts.push_back(bv);
+                        if (bv.z() > max_z) max_z = bv.z();
+                    }
+
+                    // Collect vertices at the top Z (within 0.1mm tolerance)
+                    // These form the circular injection port
+                    double sum_x = 0, sum_y = 0;
+                    int count = 0;
+                    for (const Vec3d &bv : bed_verts) {
+                        if (bv.z() >= max_z - 0.1) {
+                            sum_x += bv.x();
+                            sum_y += bv.y();
+                            count++;
+                        }
+                    }
+
+                    if (count > 0) {
+                        inject_x = sum_x / count;
+                        inject_y = sum_y / count;
+                        found_inject_point = true;
+                    }
                 }
             }
 
