@@ -95,7 +95,9 @@ std::map<std::string, std::vector<SimpleSettingData>>  SettingsFactory::OBJECT_C
                     {"support_object_first_layer_gap","",33}
                     }},
     { L("Speed"), {{"support_speed", "",12}, {"support_interface_speed", "",13}
-                  }}
+                  }},
+    { L("Injection"), {{"inject_body", L("Injection body"), 1}
+                      }}
 };
 
 std::map<std::string, std::vector<SimpleSettingData>> SettingsFactory::PART_CATEGORY_SETTINGS =

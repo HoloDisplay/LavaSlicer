@@ -4630,6 +4630,76 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    // LavaSlicer: per-object injection body setting
+    def = this->add("inject_body", coBool);
+    def->label = L("Injection body");
+    def->category = L("Others");
+    def->tooltip = L("Mark this object as an injection body. It will not be printed but defines "
+                     "the cavity to be filled. Its volume determines how much filament to inject, "
+                     "and the top face centroid determines the injection point.");
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    // LavaSlicer: global injection mode settings
+    def = this->add("inject_mode", coBool);
+    def->label = L("Enable injection mode");
+    def->category = L("Others");
+    def->tooltip = L("After the mold is printed, switch to the injection toolhead and inject "
+                     "filament into objects marked as injection bodies.");
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("inject_temperature", coInt);
+    def->label = L("Injection temperature");
+    def->category = L("Others");
+    def->tooltip = L("Nozzle temperature for the injection toolhead. Typically set higher than "
+                     "the normal printing temperature for better flow.");
+    def->sidetext = L("\u00B0C");
+    def->min = 0;
+    def->max = 500;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionInt(240));
+
+    def = this->add("inject_tool", coInt);
+    def->label = L("Injection tool");
+    def->category = L("Others");
+    def->tooltip = L("Tool index for the injection toolhead (0 = T0, 1 = T1, etc). "
+                     "If different from the mold tool, a tool change will be performed.");
+    def->min = 0;
+    def->max = 15;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionInt(1));
+
+    def = this->add("inject_fill_ratio", coPercent);
+    def->label = L("Injection fill ratio");
+    def->category = L("Others");
+    def->tooltip = L("Fraction of the injection body volume to fill. 100% fills the entire "
+                     "detected cavity volume.");
+    def->sidetext = L("%");
+    def->min = 1;
+    def->max = 200;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("inject_plunge_depth", coFloat);
+    def->label = L("Injection plunge depth");
+    def->category = L("Others");
+    def->tooltip = L("How far below the cavity rim the nozzle plunges during injection.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 50;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionFloat(2.0));
+
+    def = this->add("inject_object_name", coString);
+    def->label = L("Injection body name");
+    def->category = L("Others");
+    def->tooltip = L("Name of the object (or part) to use as the injection body. "
+                     "This object will not be printed — its volume and position define "
+                     "where and how much filament to inject. Match the name shown in the object list.");
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionString(""));
+
     def = this->add("filename_format", coString);
     def->label = L("Filename format");
     def->tooltip = L("Users can define the project file name when exporting.");

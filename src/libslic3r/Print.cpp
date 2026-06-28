@@ -2126,6 +2126,25 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         for (int index = 0; index < object_count; index++)
         {
             PrintObject *obj =  m_objects[index];
+            // LavaSlicer: skip injection bodies — they are not printed
+            bool is_inject_body = obj->config().inject_body.value;
+            if (!is_inject_body && this->config().inject_mode.value) {
+                const std::string &inject_name = this->config().inject_object_name.value;
+                if (!inject_name.empty() && obj->model_object() && obj->model_object()->name == inject_name)
+                    is_inject_body = true;
+            }
+            if (is_inject_body) {
+                if (obj->set_started(posSlice))           obj->set_done(posSlice);
+                if (obj->set_started(posPerimeters))      obj->set_done(posPerimeters);
+                if (obj->set_started(posEstimateCurledExtrusions)) obj->set_done(posEstimateCurledExtrusions);
+                if (obj->set_started(posPrepareInfill))   obj->set_done(posPrepareInfill);
+                if (obj->set_started(posInfill))          obj->set_done(posInfill);
+                if (obj->set_started(posIroning))         obj->set_done(posIroning);
+                if (obj->set_started(posContouring))      obj->set_done(posContouring);
+                if (obj->set_started(posSupportMaterial)) obj->set_done(posSupportMaterial);
+                if (obj->set_started(posDetectOverhangsForLift)) obj->set_done(posDetectOverhangsForLift);
+                continue;
+            }
             for (PrintObject *slicing_obj : need_slicing_objects)
             {
                 if (is_print_object_the_same(obj, slicing_obj)) {

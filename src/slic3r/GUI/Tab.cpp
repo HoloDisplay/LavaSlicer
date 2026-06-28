@@ -2679,6 +2679,14 @@ void TabPrint::build()
         optgroup->append_single_option_line("fuzzy_skin_persistence", "others_settings_fuzzy_skin#skin-noise-persistence");
         optgroup->append_single_option_line("fuzzy_skin_first_layer", "others_settings_fuzzy_skin#apply-fuzzy-skin-to-first-layer");
 
+        optgroup = page->new_optgroup(L("Injection"), L"param_gcode");
+        optgroup->append_single_option_line("inject_mode");
+        optgroup->append_single_option_line("inject_object_name");
+        optgroup->append_single_option_line("inject_temperature");
+        optgroup->append_single_option_line("inject_tool");
+        optgroup->append_single_option_line("inject_fill_ratio");
+        optgroup->append_single_option_line("inject_plunge_depth");
+
         optgroup = page->new_optgroup(L("G-code output"), L"param_gcode");
         optgroup->append_single_option_line("reduce_infill_retraction", "others_settings_g_code_output#reduce-infill-retraction");
         optgroup->append_single_option_line("gcode_add_line_number", "others_settings_g_code_output#add-line-number");

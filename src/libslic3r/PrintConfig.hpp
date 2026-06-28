@@ -1038,6 +1038,9 @@ PRINT_CONFIG_CLASS_DEFINE(
 
     // Orca: internal use only
     ((ConfigOptionBool,  calib_flowrate_topinfill_special_order)) // ORCA: special flag for flow rate calibration
+
+    // LavaSlicer: mark this object as an injection body (excluded from slicing, used for injection)
+    ((ConfigOptionBool,                inject_body))
 )
 
 // This object is mapped to Perl as Slic3r::Config::PrintRegion.
@@ -1592,7 +1595,13 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionPoint,               bed_mesh_probe_distance))
     ((ConfigOptionFloat,               adaptive_bed_mesh_margin))
 
-
+    // LavaSlicer: injection mode
+    ((ConfigOptionBool,                inject_mode))
+    ((ConfigOptionInt,                 inject_temperature))
+    ((ConfigOptionInt,                 inject_tool))
+    ((ConfigOptionPercent,             inject_fill_ratio))
+    ((ConfigOptionFloat,               inject_plunge_depth))
+    ((ConfigOptionString,              inject_object_name))
 )
 
 // This object is mapped to Perl as Slic3r::Config::Full.
