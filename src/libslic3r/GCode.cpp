@@ -3525,19 +3525,14 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 file.write_format("G4 S%d                 ; heat soak %d seconds\n", heat_soak_secs, heat_soak_secs);
             }
 
-            // Tool change if needed
+            // Tool change if needed — use simple T command, firmware handles park/pick
             if (inject_tool_id != mold_tool_id) {
                 file.write_format("; --- tool change: mold T%d -> inject T%d ---\n",
                                   mold_tool_id, inject_tool_id);
-                file.write_format("G1 E-%.1f F2100        ; unload mold filament\n", tc_retract);
-                file.write_format("M104 S70 T%d           ; cool mold tool\n", mold_tool_id);
-                file.write("G1 F21000\n");
-                file.write("P0 S1 L2 D0               ; park mold tool\n");
-                file.write_format("M109 S%d T%d           ; heat inject tool + wait\n",
+                file.write_format("M104 S%d T%d           ; preheat inject tool\n",
                                   inject_temp, inject_tool_id);
-                file.write("M106 S255                 ; fan\n");
-                file.write_format("T%d S1 L0 D0            ; pick inject tool\n", inject_tool_id);
-                file.write_format("G1 E%.1f F1500         ; reload inject filament\n", tc_retract);
+                file.write_format("T%d                     ; switch to inject tool\n", inject_tool_id);
+                file.write_format("M109 S%d               ; wait for inject temp\n", inject_temp);
             } else {
                 file.write_format("M104 S%d               ; heat inject tool T%d\n",
                                   inject_temp, inject_tool_id);
