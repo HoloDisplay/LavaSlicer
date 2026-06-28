@@ -2073,17 +2073,21 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     for (PrintObject *obj : m_objects)
         obj->clear_shared_object();
 
-    // LavaSlicer: set inject_skip_volume_name on model objects so raw_mesh() excludes the injection body
+    // LavaSlicer: convert injection body volume to SUPPORT_BLOCKER so it is
+    // excluded from the print mesh AND blocks support generation inside the cavity.
+    std::vector<std::pair<ModelVolume*, ModelVolumeType>> inject_volume_restore;
     if (this->config().inject_mode.value) {
         const std::string &inject_name = this->config().inject_object_name.value;
         if (!inject_name.empty()) {
             for (PrintObject *obj : m_objects) {
                 ModelObject *model_obj = obj->model_object();
                 if (!model_obj) continue;
-                for (const ModelVolume *vol : model_obj->volumes) {
+                model_obj->inject_skip_volume_name = inject_name;
+                for (ModelVolume *vol : model_obj->volumes) {
                     if (vol->is_model_part() && vol->name == inject_name) {
-                        model_obj->inject_skip_volume_name = inject_name;
-                                                break;
+                        inject_volume_restore.push_back({vol, vol->type()});
+                        vol->set_type(ModelVolumeType::SUPPORT_BLOCKER);
+                        break;
                     }
                 }
             }
@@ -2509,12 +2513,13 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
     }
 
-    // LavaSlicer: clear inject_skip_volume_name after slicing
+    // LavaSlicer: restore injection body volume types and clear skip name
+    for (auto &[vol, orig_type] : inject_volume_restore)
+        vol->set_type(orig_type);
     for (PrintObject *obj : m_objects) {
         ModelObject *model_obj = obj->model_object();
-        if (model_obj && !model_obj->inject_skip_volume_name.empty()) {
+        if (model_obj && !model_obj->inject_skip_volume_name.empty())
             model_obj->inject_skip_volume_name.clear();
-                    }
     }
 
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
