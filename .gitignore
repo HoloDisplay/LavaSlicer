@@ -1,0 +1,13 @@
+.DS_Store
+.tools/
+tmp/
+**/__pycache__/
+*.py[cod]
+
+/LavaSlicer/
+/PrusaSlicer/
+
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc

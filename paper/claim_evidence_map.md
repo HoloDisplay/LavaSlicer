@@ -1,0 +1,21 @@
+# Magma Claim-Evidence Map
+
+This map separates manuscript claims that are currently backed by artifacts from claims that are intentionally scoped as preliminary or not claimed. It is meant to make reviewer-facing evidence boundaries explicit.
+
+| id | Claim class | Manuscript claim allowed | Evidence artifact | Status |
+| --- | --- | --- | --- | --- |
+| C1 | Slicer semantics | Named mold, injected-part, port, and vent bodies can be represented as different manufacturing roles. | `paper/magma_ieee.tex`, Fig. 2, Fig. 3, `paper/source_evidence/LavaSlicer/src/libslic3r/PrintObjectSlice.cpp` | Backed by source evidence |
+| C2 | Volume planning | Injected mesh or cavity volume can be converted into commanded filament length and segmented G-code moves. | `paper/magma_ieee.tex`, Eq. 1, `tools/summarize_injection_gcode.py`, `output/verification/gcode_verification_summary.csv` | Backed by generated artifacts |
+| C3 | Machine sequence | Generated examples include heat waits, tool changes, plunge, extrusion, dwell, retract, and lift operations. | `output/verification/gcode_verification_summary.csv`, `paper/source_evidence/LavaSlicer/src/libslic3r/GCode.cpp`, `paper/source_evidence/PrusaSlicer/src/libslic3r/GCode.cpp` | Backed by generated artifacts |
+| C4 | Native slicer prototype | The LavaSlicer/PrusaSlicer prototype exposes injection settings, suppresses helper geometry, and emits typed injection-pour operations. | `paper/source_evidence/LavaSlicer/src/libslic3r/GCode.cpp`, `paper/source_evidence/LavaSlicer/src/libslic3r/PrintObjectSlice.cpp`, `paper/source_evidence/PrusaSlicer/src/libslic3r/PrintConfig.hpp`, `paper/source_evidence/PrusaSlicer/src/libslic3r/GCode.cpp` | Backed by source evidence |
+| C5 | Preliminary material delivery | Early open-cavity tests showed molten material delivery into simple printed cavities and exposed failure modes. | `paper/experiment_log_2026-06-27.md`, `paper/transcript_evidence_index.md` | Preliminary observation only |
+| C6 | Complete cavity fill | The paper does not claim complete fill, packing, repeatability, or closed-mold success. | `paper/magma_ieee.tex`, `output/verification/claim_scope_check.md`, `output/verification/fill_trial_assets.md` | Not claimed yet |
+| C7 | Industrial equivalence | The paper does not claim industrial-equivalent injection molding, mechanical equivalence, or production readiness. | `paper/magma_ieee.tex`, `output/verification/claim_scope_check.md` | Not claimed yet |
+| C8 | Quantitative physical validation | A publishable physical result requires measured rows, mold model files, executed G-code, top-view photos, and selected section evidence. | `paper/fill_trial_plan.csv`, `paper/fill_trials_template.csv`, `paper/fill_trial_protocol.md`, `output/verification/fill_trial_assets.md` | Required next evidence |
+| C9 | Reproducibility package | The package rebuilds the PDF, audit, PDF production report, G-code summary, fill-plan summary, fill-asset report, and manifest. | `Makefile`, `output/verification/submission_manifest.md`, `output/verification/paper_audit.md` | Backed by build artifacts |
+| C10 | Planned trial execution setup | The package can generate standardized mold files and planned injection-stage snippets for the physical validation matrix. | `paper/molds/mold_manifest.md`, `output/trials/planned_injection_gcode_summary.md`, `output/trials/fill_trial_packet.md` | Setup artifact only |
+| C11 | Novelty versus rapid tooling | The novelty is not printed tooling alone; it is keeping the mold on the tool-changing printer and using CAD roles, slicer state, and bounded G-code to execute the low-pressure injection operation. | `paper/magma_ieee.tex`, Section II, `output/verification/paper_audit.md` | Backed by scoped prior-work positioning |
+
+## Submission Boundary
+
+The current paper is defensible as a software/process and preliminary feasibility submission. It is not yet defensible as a complete experimental manufacturing-results paper until C8 is satisfied with measured rows and real mold/image/G-code assets. C10 artifacts help run the experiment but do not replace executed evidence. C11 is the intended reviewer-facing distinction from conventional printed-mold rapid tooling.

@@ -1,0 +1,11 @@
+plan_id,planned_gcode_file,schedule,injection_temp_c,flow_mm3_s,commanded_volume_mm3,commanded_e_mm,feed_mm_min,segments,start_z_mm,end_z_mm
+P001,output/trials/planned/p001_240c_10mm3s_top_pour.gcode,top-pour,240,10,550,228.663,249.5,46,12,12
+P002,output/trials/planned/p002_255c_10mm3s_top_pour.gcode,top-pour,255,10,550,228.663,249.5,46,12,12
+P003,output/trials/planned/p003_275c_10mm3s_top_pour.gcode,top-pour,275,10,550,228.663,249.5,46,12,12
+P004,output/trials/planned/p004_240c_20mm3s_top_pour.gcode,top-pour,240,20,550,228.663,498.9,46,12,12
+P005,output/trials/planned/p005_255c_20mm3s_top_pour.gcode,top-pour,255,20,550,228.663,498.9,46,12,12
+P006,output/trials/planned/p006_275c_20mm3s_top_pour.gcode,top-pour,275,20,550,228.663,498.9,46,12,12
+P007,output/trials/planned/p007_240c_30mm3s_top_pour.gcode,top-pour,240,30,550,228.663,748.4,46,12,12
+P008,output/trials/planned/p008_255c_30mm3s_top_pour.gcode,top-pour,255,30,550,228.663,748.4,46,12,12
+P009,output/trials/planned/p009_275c_30mm3s_top_pour.gcode,top-pour,275,30,550,228.663,748.4,46,12,12
+P010,output/trials/planned/p010_255c_20mm3s_rising_z.gcode,rising-Z,255,20,550,228.663,498.9,46,3,12

@@ -1,0 +1,240 @@
+solid P003_standard_open_cup_mold
+  facet normal 0 0 1
+    outer loop
+      vertex -7 -7 0
+      vertex 7 -7 0
+      vertex 7 7 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -7 -7 0
+      vertex 7 7 0
+      vertex -7 7 0
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex -7 -7 0
+      vertex -7 -7 12
+      vertex 7 -7 12
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex -7 -7 0
+      vertex 7 -7 12
+      vertex 7 -7 0
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 7 -7 0
+      vertex 7 -7 12
+      vertex 7 7 12
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 7 -7 0
+      vertex 7 7 12
+      vertex 7 7 0
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 7 7 0
+      vertex 7 7 12
+      vertex -7 7 12
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 7 7 0
+      vertex -7 7 12
+      vertex -7 7 0
+    endloop
+  endfacet
+  facet normal 1 0 -0
+    outer loop
+      vertex -7 7 0
+      vertex -7 7 12
+      vertex -7 -7 12
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex -7 7 0
+      vertex -7 -7 12
+      vertex -7 -7 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -7 -7 2
+      vertex 7 -7 2
+      vertex 5 -5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -7 -7 2
+      vertex 5 -5 2
+      vertex -5 -5 2
+    endloop
+  endfacet
+  facet normal 0 -0 1
+    outer loop
+      vertex 7 -7 2
+      vertex 7 7 2
+      vertex 5 5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 7 -7 2
+      vertex 5 5 2
+      vertex 5 -5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 7 7 2
+      vertex -7 7 2
+      vertex -5 5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 7 7 2
+      vertex -5 5 2
+      vertex 5 5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -7 7 2
+      vertex -7 -7 2
+      vertex -5 -5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -7 7 2
+      vertex -5 -5 2
+      vertex -5 5 2
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex -5 -5 2
+      vertex 5 -5 2
+      vertex 5 -5 12
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex -5 -5 2
+      vertex 5 -5 12
+      vertex -5 -5 12
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 5 -5 2
+      vertex 5 5 2
+      vertex 5 5 12
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 5 -5 2
+      vertex 5 5 12
+      vertex 5 -5 12
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 5 5 2
+      vertex -5 5 2
+      vertex -5 5 12
+    endloop
+  endfacet
+  facet normal 0 1 -0
+    outer loop
+      vertex 5 5 2
+      vertex -5 5 12
+      vertex 5 5 12
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex -5 5 2
+      vertex -5 -5 2
+      vertex -5 -5 12
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex -5 5 2
+      vertex -5 -5 12
+      vertex -5 5 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -7 -7 12
+      vertex -5 -5 12
+      vertex 5 -5 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -7 -7 12
+      vertex 5 -5 12
+      vertex 7 -7 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 7 -7 12
+      vertex 5 -5 12
+      vertex 5 5 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 7 -7 12
+      vertex 5 5 12
+      vertex 7 7 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 7 7 12
+      vertex 5 5 12
+      vertex -5 5 12
+    endloop
+  endfacet
+  facet normal -0 0 -1
+    outer loop
+      vertex 7 7 12
+      vertex -5 5 12
+      vertex -7 7 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -7 7 12
+      vertex -5 5 12
+      vertex -5 -5 12
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -7 7 12
+      vertex -5 -5 12
+      vertex -7 -7 12
+    endloop
+  endfacet
+endsolid P003_standard_open_cup_mold

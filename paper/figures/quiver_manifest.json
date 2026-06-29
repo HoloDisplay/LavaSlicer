@@ -1,0 +1,22 @@
+[
+  {
+    "name": "quiver_system_concept",
+    "svg": "paper/figures/quiver_system_concept.svg",
+    "png": "paper/figures/quiver_system_concept.png"
+  },
+  {
+    "name": "quiver_slicer_pipeline",
+    "svg": "paper/figures/quiver_slicer_pipeline.svg",
+    "png": "paper/figures/quiver_slicer_pipeline.png"
+  },
+  {
+    "name": "quiver_model_roles",
+    "svg": "paper/figures/quiver_model_roles.svg",
+    "png": "paper/figures/quiver_model_roles.png"
+  },
+  {
+    "name": "quiver_process_window",
+    "svg": "paper/figures/quiver_process_window.svg",
+    "png": "paper/figures/quiver_process_window.png"
+  }
+]
